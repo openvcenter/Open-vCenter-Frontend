@@ -4,7 +4,7 @@ All notable changes to ovc-frontend. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/). Each version is a git tag
 (`0.1.2`, no `v` prefix) with a matching GitHub Release and container image
-(`ghcr.io/claudio-azevedo/ovc-frontend:<version>`).
+(`ghcr.io/openvcenter/ovc-frontend:<version>`).
 
 ## [Unreleased]
 
@@ -83,8 +83,8 @@ All notable changes to ovc-frontend. The format follows
 
 First public release.
 
-[Unreleased]: https://github.com/claudio-azevedo/Open-vCenter-Frontend/compare/0.2.0...HEAD
-[0.2.0]: https://github.com/claudio-azevedo/Open-vCenter-Frontend/compare/0.1.2...0.2.0
-[0.1.2]: https://github.com/claudio-azevedo/Open-vCenter-Frontend/compare/0.1.1...0.1.2
-[0.1.1]: https://github.com/claudio-azevedo/Open-vCenter-Frontend/compare/0.1.0...0.1.1
-[0.1.0]: https://github.com/claudio-azevedo/Open-vCenter-Frontend/releases/tag/0.1.0
+[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.1.2...0.2.0
+[0.1.2]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.1.1...0.1.2
+[0.1.1]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.1.0...0.1.1
+[0.1.0]: https://github.com/openvcenter/Open-vCenter-Frontend/releases/tag/0.1.0
