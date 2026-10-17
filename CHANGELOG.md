@@ -8,6 +8,8 @@ All notable changes to ovc-frontend. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-17
+
 ### Added
 
 - "VMware Nostalgia" theme: the vSphere HTML5 Client look, after VMware's
@@ -21,6 +23,14 @@ All notable changes to ovc-frontend. The format follows
 - Windows 7 is the default theme for new browsers (it was Windows Classic). A
   theme you already picked is kept.
 - The theme list is sorted alphabetically.
+- VM Summary: the Advanced box is folded into the other boxes. Config path,
+  Mounted ISO and Host move to Virtual Machine Information; Secure Boot, nested
+  virtualization, HA and automatic start/stop move to Configuration.
+- New Open vCenter logo on the login screen and in the About dialog, and new
+  favicons and app icons.
+- The About dialog links to the project's new home,
+  github.com/openvcenter/Open-vCenter. Images are now published as
+  `ghcr.io/openvcenter/ovc-frontend`.
 
 ### Removed
 
@@ -83,7 +93,8 @@ All notable changes to ovc-frontend. The format follows
 
 First public release.
 
-[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.2.0...HEAD
+[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.3.0...HEAD
+[0.3.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.2.0...0.3.0
 [0.2.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.1.2...0.2.0
 [0.1.2]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.1.0...0.1.1
