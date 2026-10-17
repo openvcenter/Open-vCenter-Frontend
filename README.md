@@ -107,7 +107,7 @@ agent, RabbitMQ, database, OIDC provider or guacd. Nothing else needs to be set.
 ```sh
 docker compose -f docker-compose.demo.yml up --build -d     # http://localhost:3000
 # or the published image:
-docker run --rm -p 3000:3000 ghcr.io/claudio-azevedo/ovc-frontend:demo
+docker run --rm -p 3000:3000 ghcr.io/openvcenter/ovc-frontend:demo
 # or locally:
 OVC_DEMO_MODE=true npm run dev
 ```

@@ -10,7 +10,7 @@
 #   open http://localhost:3000
 #
 # Or the image CI publishes from the `demo` branch (demo mode already on):
-#   docker run --rm -p 3000:3000 ghcr.io/claudio-azevedo/ovc-frontend:demo
+#   docker run --rm -p 3000:3000 ghcr.io/openvcenter/ovc-frontend:demo
 
 services:
   ovc-frontend-demo:
