@@ -24,12 +24,12 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
         <p className="text-disabled-text">See licenses and details below.</p>
         <p>
           <a
-            href="https://github.com/claudio-azevedo/Open-vCenter"
+            href="https://github.com/openvcenter/Open-vCenter"
             target="_blank"
             rel="noopener noreferrer"
             className="text-accent underline"
           >
-            github.com/claudio-azevedo/Open-vCenter
+            github.com/openvcenter/Open-vCenter
           </a>
         </p>
         <p>

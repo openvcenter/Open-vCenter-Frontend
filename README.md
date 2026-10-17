@@ -14,7 +14,7 @@
   <a href="https://openvcenter.com/running">Run it</a> ·
   <a href="https://openvcenter.com/docker-compose">Docker Compose</a> ·
   <a href="https://openvcenter.com/kubernetes">Kubernetes</a> ·
-  <a href="https://github.com/claudio-azevedo/Open-Virtualization-Manager/releases">Release Notes</a>
+  <a href="https://github.com/openvcenter/Open-vCenter-Frontend/releases">Release Notes</a>
 </p>
 
 # ovc-frontend
@@ -30,7 +30,7 @@ It is one of three services:
 | `ovc-agent`                | Go binary on each Hyper-V host. Executes operations, replies over RabbitMQ. |
 
 > A pre-built image is published to GHCR as
-> [`ghcr.io/claudio-azevedo/ovc-frontend`](https://github.com/claudio-azevedo/Open-vCenter-Frontend/pkgs/container/ovc-frontend) -
+> [`ghcr.io/openvcenter/ovc-frontend`](https://github.com/openvcenter/Open-vCenter-Frontend/pkgs/container/ovc-frontend) -
 > see [Docker Compose](https://openvcenter.com/docker-compose) or
 > [Kubernetes](https://openvcenter.com/kubernetes) to run the whole stack with it.
 > Everything from here down is for **local development**, running this app

@@ -18,7 +18,7 @@ USER 1000
 # assets it serves itself - no node_modules, no CLI flags needed at runtime.
 FROM dhi.io/node:24-alpine AS production
 
-LABEL org.opencontainers.image.source=https://github.com/claudio-azevedo/Open-vCenter-Frontend
+LABEL org.opencontainers.image.source=https://github.com/openvcenter/Open-vCenter-Frontend
 LABEL org.opencontainers.image.description="Open vCenter Frontend"
 LABEL org.opencontainers.image.licenses=APACHE-2.0
 
