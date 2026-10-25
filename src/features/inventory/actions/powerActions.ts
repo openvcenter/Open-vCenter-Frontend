@@ -39,6 +39,7 @@ export const POWER_ACTIONS: PowerActionDef[] = [
     label: "Shut Down",
     icon: Power,
     allowedStates: ["Running"],
+    confirm: "Shut down this VM? The guest operating system is asked to shut down.",
   },
   {
     id: "stop",
@@ -47,6 +48,7 @@ export const POWER_ACTIONS: PowerActionDef[] = [
     color: RED,
     allowedStates: ["Running", "Paused"],
     confirm: "Turn off this VM? Unsaved data in the guest will be lost.",
+    destructive: true,
   },
   {
     id: "restart",

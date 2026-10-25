@@ -31,7 +31,12 @@ export function HostConfigurationPanel({
   return (
     <SectionList sections={SECTIONS} value={section} onChange={setSection}>
       {section === "startup" ? (
-        <VmStartupOrderingPanel vms={vms} clustered={isClusteredHost(host)} />
+        // every row is this host, so no Host column
+        <VmStartupOrderingPanel
+          vms={vms}
+          clustered={isClusteredHost(host)}
+          showHost={false}
+        />
       ) : null}
       {section === "nics" ? (
         <HostNetworkAdaptersPanel hardware={host.hardware} />

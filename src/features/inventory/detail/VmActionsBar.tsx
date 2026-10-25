@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlarmClock,
   Copy,
@@ -20,7 +20,6 @@ import {
 import { Button, Icon, Menu } from "~/components/win95";
 import type { MenuItemDef } from "~/components/win95";
 import { qk } from "~/api/queryKeys";
-import { hostQuery } from "~/api/queries";
 import { releaseVmLock, removeVmFromInventory } from "~/api/endpoints/vms";
 import { ApiError } from "~/api/client";
 import { useAuth } from "~/auth";
@@ -31,6 +30,7 @@ import { organizeDialog } from "../organize/dialogStore";
 import { useVmFolderTargets } from "../organize/scope";
 import { vmActionDialog } from "./vmActions/dialogStore";
 import { useVmManagementAction } from "../actions/useVmManagementAction";
+import { useVmActionBlock } from "../actions/useVmActionBlock";
 import { statusMessage } from "../actions/statusMessage";
 import { taskLabel } from "../tasks/taskLabels";
 import { relTime } from "../format";
@@ -42,12 +42,10 @@ export function VmActionsBar({ vm }: { vm: Vm }) {
   const mgmt = useVmManagementAction(vm);
   const { isAdmin } = useAuth();
   const { select } = useInventorySelection();
-  const host = useQuery({ ...hostQuery(vm.hostId), enabled: !!vm.hostId });
   const off = vm.state === "Off";
-  const locked = !!vm.lock;
   // Host agent stopped checking in - the VM reads as Unknown and no agent-backed
   // action can run. Only "Remove from Inventory" (a DB-only delete) stays open.
-  const hostOffline = host.isSuccess && !host.data.online;
+  const { host, locked, hostOffline } = useVmActionBlock(vm);
 
   // HA is a cluster-only concept - hide it entirely on a standalone host
   const inCluster = !!host.data?.clusterId;
@@ -214,22 +212,19 @@ export function VmActionsBar({ vm }: { vm: Vm }) {
           { type: "separator" },
         ] as MenuItemDef[])
       : []),
-    // cloning requires the VM to be powered off - hide it otherwise
-    ...(off
-      ? ([
-          {
-            label: "Clone VM",
-            icon: Copy,
-            onSelect: () =>
-              organizeDialog.open({
-                kind: "new-vm",
-                mode: "clone",
-                sourceVmId: vm.id,
-                hostId: vm.hostId,
-              }),
-          },
-        ] as MenuItemDef[])
-      : []),
+    // cloning and exporting read the VM's disks, so the VM must be off
+    {
+      label: "Clone VM",
+      icon: Copy,
+      disabled: !off,
+      onSelect: () =>
+        organizeDialog.open({
+          kind: "new-vm",
+          mode: "clone",
+          sourceVmId: vm.id,
+          hostId: vm.hostId,
+        }),
+    },
     {
       label: "Export as Template",
       icon: FileUp,
@@ -267,6 +262,7 @@ export function VmActionsBar({ vm }: { vm: Vm }) {
       {
         label: "Remove from Inventory",
         icon: Trash2,
+        danger: true,
         onSelect: removeFromInventory,
       },
     ];
@@ -275,7 +271,12 @@ export function VmActionsBar({ vm }: { vm: Vm }) {
     menuItems = [
       ...menuItems,
       { type: "separator" },
-      { label: "Force unlock (admin)", icon: Lock, onSelect: forceUnlock },
+      {
+        label: "Force unlock (admin)",
+        icon: Lock,
+        danger: true,
+        onSelect: forceUnlock,
+      },
     ];
   }
 

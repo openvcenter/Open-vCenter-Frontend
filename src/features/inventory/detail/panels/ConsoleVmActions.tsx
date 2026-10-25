@@ -1,11 +1,15 @@
-import { Disc, DiscAlbum, Play, Power, RotateCcw, Square } from 'lucide-react'
+import { Disc, DiscAlbum } from 'lucide-react'
 import { ToolbarButton, ToolbarSeparator } from '~/components/win95'
-import type { Vm } from '~/api/types'
+import type { Vm, VmPowerAction } from '~/api/types'
 import { TRANSITIONAL_VM_STATES } from '~/api/types'
+import { POWER_ACTIONS } from '../../actions/powerActions'
 import { useVmPowerAction } from '../../actions/useVmPowerAction'
 import { useVmManagementAction } from '../../actions/useVmManagementAction'
 import { confirm } from '../../confirm'
 import { vmActionDialog } from '../vmActions/dialogStore'
+
+// the console toolbar's subset of the header power buttons, same order
+const CONSOLE_POWER: VmPowerAction[] = ['start', 'shutdown', 'stop', 'restart']
 
 /**
  * VM power + DVD controls shown at the head of the console toolbar (both the
@@ -25,56 +29,33 @@ export function ConsoleVmActions({ vm }: { vm: Vm }) {
     mgmt.isPending ||
     TRANSITIONAL_VM_STATES.has(vm.state) ||
     !!vm.lock
-  const running = vm.state === 'Running'
-  const off = vm.state === 'Off'
-
   const ask = async (message: string, confirmLabel: string, danger = false) =>
     confirm({ title: vm.name, message, confirmLabel, danger })
 
+  // label, icon, allowed states and confirmation come from the shared power
+  // matrix (powerActions.ts), so the console never disagrees with the header
   return (
     <>
-      <ToolbarButton
-        icon={Play}
-        label="Start"
-        onClick={() => power.mutate({ action: 'start' })}
-        disabled={busy || !off}
-      />
-      <ToolbarButton
-        icon={Power}
-        label="Shut Down"
-        onClick={async () => {
-          if (await ask('Shut down this VM?', 'Shut Down')) {
-            power.mutate({ action: 'shutdown' })
-          }
-        }}
-        disabled={busy || !running}
-      />
-      <ToolbarButton
-        icon={Square}
-        label="Turn Off"
-        onClick={async () => {
-          if (
-            await ask(
-              'Turn off this VM? Unsaved data in the guest will be lost.',
-              'Turn Off',
-              true,
-            )
-          ) {
-            power.mutate({ action: 'stop' })
-          }
-        }}
-        disabled={busy || !running}
-      />
-      <ToolbarButton
-        icon={RotateCcw}
-        label="Restart"
-        onClick={async () => {
-          if (await ask('Restart this VM?', 'Restart')) {
-            power.mutate({ action: 'restart' })
-          }
-        }}
-        disabled={busy || !running}
-      />
+      {CONSOLE_POWER.map((id) => {
+        const def = POWER_ACTIONS.find((a) => a.id === id)!
+        return (
+          <ToolbarButton
+            key={id}
+            icon={def.icon}
+            label={def.label}
+            onClick={async () => {
+              if (
+                def.confirm &&
+                !(await ask(def.confirm, def.label, def.destructive))
+              ) {
+                return
+              }
+              power.mutate({ action: id })
+            }}
+            disabled={busy || !def.allowedStates.includes(vm.state)}
+          />
+        )
+      })}
       <ToolbarSeparator />
       {vm.dvdPath ? (
         <ToolbarButton

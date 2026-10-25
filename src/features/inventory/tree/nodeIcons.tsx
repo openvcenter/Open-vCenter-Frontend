@@ -66,3 +66,27 @@ export function VmIcon({ state }: { state: VmState }) {
     />
   );
 }
+
+/** A VM's state as the transport icon plus its name - for tables and grids. */
+export function VmStateLabel({ state }: { state: VmState }) {
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+      <VmIcon state={state} />
+      {state}
+    </span>
+  );
+}
+
+/** A host's agent status as the server icon plus Online / Offline. */
+export function HostStatusLabel({ online }: { online: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+      <Icon
+        icon={online ? Server : ServerOff}
+        size={13}
+        className={online ? "text-fg" : "text-disabled-text"}
+      />
+      {online ? "Online" : "Offline"}
+    </span>
+  );
+}

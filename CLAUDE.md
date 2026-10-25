@@ -11,7 +11,9 @@ app's server serves the Guacamole HTTP tunnel itself, `src/routes/webrdp/tunnel.
 **`LLM.md` is the full reference**: screens, every REST contract, the icon tables,
 every business rule. Read the relevant section before changing behaviour. The REST
 contract written for the backend team is `docs/api-contract.md`, reconciled with
-the code on 2026-09-27; it holds the full error-code table.
+the code on 2026-09-27; it holds the full error-code table. `PRODUCT.md` holds the
+product context (users, positioning, brand) and `DESIGN.md` the visual system
+(tokens, themes, components); read `DESIGN.md` before any UI change.
 
 ## Commands
 
@@ -104,7 +106,7 @@ guacamole-common-js · react-resizable-panels **v3** (pinned).
   | Restart   | Running             |
   | Delete    | Off, Saved          |
 
-  Turn Off and Restart ask for confirmation. Delete asks with an opt-in "remove
+  Shut Down, Turn Off and Restart ask for confirmation. Delete asks with an opt-in "remove
   files" checkbox (`?remove_files=true`).
 - **Locked VM** (`vm.lock`) or **offline host** (its VMs read `Unknown`, and the
   backend answers `409`): every VM action is disabled. The exceptions are

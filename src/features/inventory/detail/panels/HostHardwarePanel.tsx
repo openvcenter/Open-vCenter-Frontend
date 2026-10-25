@@ -18,7 +18,7 @@ export function HostHardwarePanel({
 }) {
   if (!hardware) {
     const message = (
-      <p className="text-disabled-text">
+      <p>
         No hardware inventory - the host agent has not reported yet.
       </p>
     );

@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Monitor } from "lucide-react";
 import { Button, GroupBox, Icon, PropertyList, Tabs } from "~/components/win95";
@@ -10,9 +11,10 @@ import {
 } from "~/api/queries";
 import { HYPERVISOR_LABEL } from "~/api/types";
 import { useAuth } from "~/auth";
-import { HostIcon } from "../tree/nodeIcons";
+import { HostIcon, HostStatusLabel } from "../tree/nodeIcons";
 import { useInventorySelection } from "../selection";
 import { relTime } from "../format";
+import { statusMessage } from "../actions/statusMessage";
 import { hostConsoleTabUrl } from "./panels/webrdp";
 import { DetailHeader } from "./DetailHeader";
 import { HostActionsMenu } from "./HostActionsMenu";
@@ -45,9 +47,6 @@ export function HostDetail({ hostId }: { hostId: string }) {
   const { tab, setTab } = useInventorySelection();
   const { isAdmin } = useAuth();
 
-  if (host.isError) {
-    return <div className="p-3 text-disabled-text">Host unavailable.</div>;
-  }
   const h = host.data;
 
   // An agent that has responded even once (online now, or offline but seen
@@ -57,8 +56,27 @@ export function HostDetail({ hostId }: { hostId: string }) {
   const listEntry = hosts.data?.find((x) => x.id === hostId);
   const known = h ?? listEntry;
   const agentResponded = known ? known.agent.lastSeen != null : true;
+
+  // The host's first check-in, seen live from the Setup Agent tab: say so. The
+  // tab set swaps on its own and `active` falls back to Summary.
+  // Keyed by host: selecting another host must not read as a check-in.
+  const waitingFor = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!known) return;
+    if (waitingFor.current === known.id && agentResponded) {
+      statusMessage.set(
+        `${known.name}: the agent checked in - the host is ready to manage`,
+      );
+    }
+    waitingFor.current = agentResponded ? null : known.id;
+  }, [known, agentResponded]);
+
+  if (host.isError) {
+    return <div className="p-3 text-disabled-text">Host unavailable.</div>;
+  }
   const baseTabs = agentResponded ? CONNECTED_TABS : SETUP_TABS;
   const tabs = isAdmin ? [...baseTabs, EVENTS_TAB] : baseTabs;
+
   const active =
     tab && tabs.some((t) => t.id === tab)
       ? tab
@@ -74,7 +92,7 @@ export function HostDetail({ hostId }: { hostId: string }) {
     <div className="flex h-full flex-col gap-2 p-3">
       <DetailHeader
         icon={<HostIcon online={!!h?.online} />}
-        title={h?.name ?? hostId}
+        title={known?.name ?? "Loading host…"}
         subtitle={h?.fqdn}
         actions={
           <div className="flex gap-1">
@@ -107,7 +125,12 @@ export function HostDetail({ hostId }: { hostId: string }) {
               <GroupBox label="Host Information">
                 <PropertyList
                   items={[
-                    { label: "Status", value: h.online ? "Online" : "Offline" },
+                    // `online` is the agent's connection, so this one row
+                    // covers both
+                    {
+                      label: "Status",
+                      value: <HostStatusLabel online={h.online} />,
+                    },
                     { label: "Cluster", value: clusterName },
                     ...(h.hardware?.cluster?.clustered
                       ? [
@@ -127,10 +150,6 @@ export function HostDetail({ hostId }: { hostId: string }) {
                     // and `host_id` in the agent's config.ini (not the DB UUID)
                     { label: "Host ID", value: h.shortId },
                     { label: "Virtual machines", value: h.vmCount },
-                    {
-                      label: "Agent",
-                      value: h.agent.connected ? "Connected" : "Disconnected",
-                    },
                     { label: "Agent version", value: h.agent.version ?? "-" },
                     { label: "Last seen", value: relTime(h.agent.lastSeen) },
                   ]}

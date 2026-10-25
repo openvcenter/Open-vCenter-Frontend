@@ -18,7 +18,7 @@ const mono = (v: string | null | undefined) =>
 
 function Empty({ what }: { what: string }) {
   return (
-    <p className="text-disabled-text">
+    <p>
       No {what} reported for this host. Use Refresh Hardware to collect them
       (requires an up-to-date agent).
     </p>

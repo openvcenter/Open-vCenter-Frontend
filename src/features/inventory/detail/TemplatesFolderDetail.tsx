@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { PropertyList, Table, Td, Th } from "~/components/win95";
+import { ActionRow, PropertyList, Table, Td, Th } from "~/components/win95";
 import { clustersQuery, hostsQuery, templatesQuery } from "~/api/queries";
 import { FolderIcon } from "../tree/nodeIcons";
 import { useInventorySelection } from "../selection";
@@ -56,10 +56,9 @@ export function TemplatesFolderDetail({ scope }: { scope: string }) {
         </thead>
         <tbody>
           {rows.map((t) => (
-            <tr
+            <ActionRow
               key={t.id}
-              className="cursor-default hover:bg-surface-2"
-              onClick={() => select({ kind: "template", id: t.id })}
+              onActivate={() => select({ kind: "template", id: t.id })}
             >
               <Td>{t.name}</Td>
               {scopeKind === "cluster" ? (
@@ -73,8 +72,19 @@ export function TemplatesFolderDetail({ scope }: { scope: string }) {
               <Td className="text-right">{bytes(t.sizeBytes)}</Td>
               <Td className="text-right">{bytes(t.diskSizeBytes)}</Td>
               <Td>{dateTime(t.createdAt)}</Td>
-            </tr>
+            </ActionRow>
           ))}
+          {templates.data && rows.length === 0 ? (
+            <tr>
+              <Td
+                colSpan={scopeKind === "cluster" ? 8 : 7}
+                className="text-disabled-text"
+              >
+                No templates here yet. Export an Off VM with More ▸ Export as
+                Template.
+              </Td>
+            </tr>
+          ) : null}
         </tbody>
       </Table>
     </div>

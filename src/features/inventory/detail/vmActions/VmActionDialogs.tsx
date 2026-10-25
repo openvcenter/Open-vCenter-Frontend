@@ -5,6 +5,7 @@ import { hostIsosQuery, hostQuery, vmQuery } from "~/api/queries";
 import { useVmManagementAction } from "../../actions/useVmManagementAction";
 import { bytes } from "../../format";
 import { EditVmDialog } from "./EditVmDialog";
+import { errorText } from "./errorText";
 import { moveStorageTargets, storageKey } from "./storage";
 import { vmActionDialog, useVmActionDialog } from "./dialogStore";
 
@@ -39,18 +40,21 @@ function Footer({
   onOk,
   okLabel = "OK",
   okDisabled,
+  pending,
   danger,
 }: {
   onOk: () => void;
   okLabel?: string;
   okDisabled?: boolean;
+  /** request in flight - OK stays disabled so it can't be sent twice */
+  pending?: boolean;
   danger?: boolean;
 }) {
   return (
     <>
       <Button
         onClick={onOk}
-        disabled={okDisabled}
+        disabled={okDisabled || pending}
         className={danger ? "font-bold" : ""}
       >
         {okLabel}
@@ -86,8 +90,9 @@ function RenameDialog({ vmId }: { vmId: string }) {
     <Dialog
       title={`Rename "${vm?.name ?? "…"}"`}
       onClose={vmActionDialog.close}
+      error={errorText(m.error)}
       footer={
-        <Footer
+        <Footer pending={m.isPending}
           onOk={submit}
           okLabel="Rename"
           okDisabled={!name.trim() || name.trim() === vm?.name}
@@ -99,7 +104,7 @@ function RenameDialog({ vmId }: { vmId: string }) {
         autoFocus
         value={name}
         onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && submit()}
+        onKeyDown={(e) => e.key === "Enter" && !m.isPending && submit()}
       />
     </Dialog>
   );
@@ -131,10 +136,11 @@ function MigrateDialog({ vmId }: { vmId: string }) {
     <Dialog
       title={`Migrate "${vm?.name ?? "…"}"`}
       onClose={vmActionDialog.close}
-      footer={<Footer onOk={submit} okLabel="Migrate" okDisabled={!target} />}
+      error={errorText(m.error)}
+      footer={<Footer pending={m.isPending} onOk={submit} okLabel="Migrate" okDisabled={!target} />}
     >
       {nodes.length === 0 ? (
-        <p className="text-disabled-text">
+        <p>
           No other cluster nodes available for this VM's host.
         </p>
       ) : (
@@ -177,11 +183,12 @@ function MoveStorageDialog({ vmId }: { vmId: string }) {
     <Dialog
       title={`Move storage - "${vm?.name ?? "…"}"`}
       onClose={vmActionDialog.close}
-      footer={<Footer onOk={submit} okLabel="Move" okDisabled={!dest} />}
+      error={errorText(m.error)}
+      footer={<Footer pending={m.isPending} onOk={submit} okLabel="Move" okDisabled={!dest} />}
       width={440}
     >
       {targets.length === 0 ? (
-        <p className="text-disabled-text">
+        <p>
           Nowhere to move this VM - the host reports only the volume it already
           lives on.
         </p>
@@ -234,7 +241,8 @@ function AutoStartDialog({ vmId }: { vmId: string }) {
     <Dialog
       title={`AutoStart - "${vm?.name ?? "…"}"`}
       onClose={vmActionDialog.close}
-      footer={<Footer onOk={submit} okLabel="Save" />}
+      error={errorText(m.error)}
+      footer={<Footer pending={m.isPending} onOk={submit} okLabel="Save" />}
     >
       <div className="flex flex-col gap-3">
         <Dropdown
@@ -284,11 +292,12 @@ function MountDvdDialog({ vmId }: { vmId: string }) {
     <Dialog
       title={`Mount DVD - "${vm?.name ?? "…"}"`}
       onClose={vmActionDialog.close}
-      footer={<Footer onOk={submit} okLabel="Mount" okDisabled={!path} />}
+      error={errorText(m.error)}
+      footer={<Footer pending={m.isPending} onOk={submit} okLabel="Mount" okDisabled={!path} />}
       width={420}
     >
       {(isos.data ?? []).length === 0 ? (
-        <p className="text-disabled-text">
+        <p>
           No ISO images reported for this host.
         </p>
       ) : (
@@ -333,8 +342,9 @@ function ExportTemplateDialog({ vmId }: { vmId: string }) {
     <Dialog
       title={`Export "${vm?.name ?? "…"}" as template`}
       onClose={vmActionDialog.close}
+      error={errorText(m.error)}
       footer={
-        <Footer
+        <Footer pending={m.isPending}
           onOk={submit}
           okLabel="Export"
           okDisabled={!valid || vm?.state !== "Off"}
@@ -343,7 +353,7 @@ function ExportTemplateDialog({ vmId }: { vmId: string }) {
     >
       <div className="flex flex-col gap-2">
         {vm && vm.state !== "Off" ? (
-          <p className="text-disabled-text">The VM must be off to export.</p>
+          <p className="text-notice-text">The VM must be off to export.</p>
         ) : null}
         <TextField
           label="Template name"
@@ -351,7 +361,7 @@ function ExportTemplateDialog({ vmId }: { vmId: string }) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="_TEMPLATE_WIN2022_BASE"
-          onKeyDown={(e) => e.key === "Enter" && submit()}
+          onKeyDown={(e) => e.key === "Enter" && !m.isPending && submit()}
         />
         <p className="text-disabled-text">Letters, digits, - and _ only.</p>
         <label className="flex flex-col gap-1 text-base">
@@ -386,7 +396,8 @@ function NotesDialog({ vmId }: { vmId: string }) {
     <Dialog
       title={`Notes - "${vm?.name ?? "…"}"`}
       onClose={vmActionDialog.close}
-      footer={<Footer onOk={submit} okLabel="Save" />}
+      error={errorText(m.error)}
+      footer={<Footer pending={m.isPending} onOk={submit} okLabel="Save" />}
       width={420}
     >
       <textarea
@@ -420,14 +431,15 @@ function SnapshotCreateDialog({ vmId }: { vmId: string }) {
     <Dialog
       title={`New snapshot - "${vm?.name ?? "…"}"`}
       onClose={vmActionDialog.close}
-      footer={<Footer onOk={submit} okLabel="Create" />}
+      error={errorText(m.error)}
+      footer={<Footer pending={m.isPending} onOk={submit} okLabel="Create" />}
     >
       <TextField
         label="Snapshot name (optional)"
         autoFocus
         value={name}
         onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && submit()}
+        onKeyDown={(e) => e.key === "Enter" && !m.isPending && submit()}
       />
     </Dialog>
   );

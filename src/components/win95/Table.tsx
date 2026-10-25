@@ -44,6 +44,34 @@ export function Td({
   return <td className={cn("px-2 py-[2px] align-top", className)} {...props} />;
 }
 
+/**
+ * A row that opens something (a host, a VM, a template). It takes focus in Tab
+ * order and opens on Enter or Space, not only on click.
+ */
+export function ActionRow({
+  onActivate,
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLTableRowElement> & { onActivate: () => void }) {
+  return (
+    <tr
+      tabIndex={0}
+      onClick={onActivate}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onActivate();
+        }
+      }}
+      className={cn(
+        "cursor-default hover:bg-surface-2 focus-visible:bg-surface-2",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 /** Two-column key/value list - the workhorse of the detail panels. */
 export function PropertyList({
   items,

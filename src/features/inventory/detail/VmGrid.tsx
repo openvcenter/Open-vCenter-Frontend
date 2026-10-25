@@ -11,7 +11,6 @@ import type {
   SelectionChangedEvent,
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { Play, Power } from "lucide-react";
 import {
   Button,
   ClientOnly,
@@ -22,9 +21,12 @@ import {
 import type { DropdownOption } from "~/components/win95";
 import type { Vm, VmState } from "~/api/types";
 import { bytes, duration } from "../format";
+import { VmStateLabel } from "../tree/nodeIcons";
 import { useInventorySelection } from "../selection";
 import { confirm } from "../confirm";
 import { useVmBatchPowerAction } from "../actions/useVmBatchPowerAction";
+import type { VmBatchAction } from "../actions/useVmBatchPowerAction";
+import { POWER_ACTIONS } from "../actions/powerActions";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -33,8 +35,14 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 // comes from the wrapper div.
 const gridTheme = themeQuartz.withParams({
   fontFamily: "inherit",
-  fontSize: 11,
-  headerFontSize: 11,
+  fontSize: 12,
+  headerFontSize: 12,
+  // same density as the win95 `Table` (Th ≈ 24 px, Td ≈ 22 px); Quartz's
+  // defaults (≈ 42 px rows) read as a different app inside the detail pane
+  rowHeight: 22,
+  headerHeight: 24,
+  cellHorizontalPadding: 8,
+  iconSize: 12,
   borderRadius: 0,
   wrapperBorderRadius: 0,
   browserColorScheme: "inherit",
@@ -47,28 +55,47 @@ const gridTheme = themeQuartz.withParams({
   borderColor: "var(--grid-border)",
 });
 
+// Every column has an explicit colId: ag-grid otherwise numbers the
+// valueGetter-only columns itself, and when the column set is rebuilt (the
+// selection column changes with every batch lock) the generated ids drift and
+// cells land under the wrong header.
 const columns: ColDef<Vm>[] = [
-  { field: "name", headerName: "Name", flex: 2, minWidth: 160 },
-  { field: "state", headerName: "State", width: 110 },
-  { field: "vcpu", headerName: "vCPU", width: 80 },
+  { colId: "name", field: "name", headerName: "Name", flex: 2, minWidth: 160 },
   {
+    colId: "state",
+    field: "state",
+    headerName: "State",
+    width: 120,
+    minWidth: 120,
+    cellRenderer: (p: { value?: VmState }) =>
+      p.value ? <VmStateLabel state={p.value} /> : null,
+  },
+  { colId: "vcpu", field: "vcpu", headerName: "vCPU", width: 80, minWidth: 80 },
+  {
+    colId: "memory",
     headerName: "Memory",
     width: 110,
+    minWidth: 110,
     valueGetter: (p) => p.data?.memory.assignedBytes ?? 0,
     valueFormatter: (p) => bytes(p.value),
   },
   {
+    colId: "uptime",
     headerName: "Uptime",
     width: 110,
+    minWidth: 110,
     valueGetter: (p) => p.data?.uptimeSec ?? null,
     valueFormatter: (p) => duration(p.value),
   },
   {
+    colId: "snapshot",
     headerName: "Snapshot",
     width: 100,
+    minWidth: 100,
     valueGetter: (p) => ((p.data?.snapshots.length ?? 0) > 0 ? "Yes" : "No"),
   },
   {
+    colId: "ip",
     headerName: "IP address",
     flex: 1,
     minWidth: 130,
@@ -91,6 +118,8 @@ const STATE_FILTER_OPTIONS: DropdownOption[] = [
   { value: "Off", label: "Off" },
   { value: "Paused", label: "Paused" },
   { value: "Saved", label: "Saved" },
+  // VMs stranded on a host whose agent went away
+  { value: "Unknown", label: "Unknown" },
 ];
 
 const SNAPSHOT_FILTER_OPTIONS: DropdownOption[] = [
@@ -99,13 +128,29 @@ const SNAPSHOT_FILTER_OPTIONS: DropdownOption[] = [
   { value: "no", label: "No snapshot" },
 ];
 
+// Batch buttons reuse the single-VM power definitions so the label, icon and
+// confirmation text match the header buttons exactly.
+const BATCH_ACTIONS = {
+  Off: ["start"],
+  Running: ["shutdown", "stop"],
+} as const satisfies Record<"Off" | "Running", VmBatchAction[]>;
+
+const powerDef = (id: VmBatchAction) => POWER_ACTIONS.find((a) => a.id === id)!;
+
 /** Batch power actions only make sense for VMs that are fully on or fully off. */
 const BATCHABLE_STATES: ReadonlySet<VmState> = new Set<VmState>([
   "Running",
   "Off",
 ]);
 
-export function VmGrid({ vms }: { vms: Vm[] }) {
+/** `hostNames` adds a Host column - for lists that span hosts (a cluster folder). */
+export function VmGrid({
+  vms,
+  hostNames,
+}: {
+  vms: Vm[];
+  hostNames?: ReadonlyMap<string, string>;
+}) {
   const { select } = useInventorySelection();
   const batch = useVmBatchPowerAction();
 
@@ -114,6 +159,38 @@ export function VmGrid({ vms }: { vms: Vm[] }) {
   const [snapshotFilter, setSnapshotFilter] = React.useState("");
   const [selectedVms, setSelectedVms] = React.useState<Vm[]>([]);
   const gridApiRef = React.useRef<GridApi<Vm> | null>(null);
+
+  // The host list polls, so `hostNames` is a new Map every few seconds. Read it
+  // through a ref and refresh the cells, so the column set itself only changes
+  // when the Host column appears or goes away.
+  const hostNamesRef = React.useRef(hostNames);
+  hostNamesRef.current = hostNames;
+  const showHost = !!hostNames;
+  React.useEffect(() => {
+    gridApiRef.current?.refreshCells({ columns: ["host"] });
+  }, [hostNames]);
+
+  const columnDefs = React.useMemo<ColDef<Vm>[]>(
+    () =>
+      showHost
+        ? [
+            columns[0],
+            columns[1],
+            {
+              colId: "host",
+              headerName: "Host",
+              width: 140,
+              minWidth: 140,
+              valueGetter: (p) =>
+                p.data
+                  ? (hostNamesRef.current?.get(p.data.hostId) ?? p.data.hostId)
+                  : "",
+            },
+            ...columns.slice(2),
+          ]
+        : columns,
+    [showHost],
+  );
 
   // A batch can only target VMs that share one power state; the first selected
   // row locks the rest until the selection is cleared.
@@ -163,23 +240,28 @@ export function VmGrid({ vms }: { vms: Vm[] }) {
     setSelectedVms([]);
   };
 
-  const runBatch = async (action: "start" | "stop") => {
-    const label = action === "start" ? "Power On" : "Power Off";
+  const runBatch = async (action: VmBatchAction) => {
+    const def = powerDef(action);
     const n = selectedVms.length;
     const ok = await confirm({
-      title: label,
-      confirmLabel: label,
+      title: `${def.label} - ${n} VM${n === 1 ? "" : "s"}`,
+      confirmLabel: def.label,
       danger: action === "stop",
       message: (
         <div className="space-y-1">
           <p>
-            {label} the following {n} VM{n === 1 ? "" : "s"}?
+            {def.label} the following {n} VM{n === 1 ? "" : "s"}?
           </p>
           <ul className="bevel-sunken max-h-40 overflow-auto bg-window p-1">
             {selectedVms.map((v) => (
               <li key={v.id}>{v.name}</li>
             ))}
           </ul>
+          {action === "stop" && (
+            <p className="font-bold text-danger">
+              Unsaved data in the guests will be lost.
+            </p>
+          )}
         </div>
       ),
     });
@@ -210,26 +292,22 @@ export function VmGrid({ vms }: { vms: Vm[] }) {
           className="w-36"
         />
         <div className="flex-1" />
-        {selectedVms.length > 0 && lockedState === "Off" && (
-          <Button
-            className="min-w-0 px-2"
-            disabled={batch.isPending}
-            onClick={() => runBatch("start")}
-          >
-            <Icon icon={Play} size={14} className="text-success" />
-            Power On ({selectedVms.length})
-          </Button>
-        )}
-        {selectedVms.length > 0 && lockedState === "Running" && (
-          <Button
-            className="min-w-0 px-2"
-            disabled={batch.isPending}
-            onClick={() => runBatch("stop")}
-          >
-            <Icon icon={Power} size={14} className="text-danger" />
-            Power Off ({selectedVms.length})
-          </Button>
-        )}
+        {selectedVms.length > 0 &&
+          lockedState &&
+          BATCH_ACTIONS[lockedState].map((id) => {
+            const def = powerDef(id);
+            return (
+              <Button
+                key={id}
+                className="min-w-0 px-2"
+                disabled={batch.isPending}
+                onClick={() => runBatch(id)}
+              >
+                <Icon icon={def.icon} size={14} className={def.color} />
+                {def.label} ({selectedVms.length})
+              </Button>
+            );
+          })}
       </div>
 
       <div className="bevel-sunken h-full min-h-[200px] bg-window p-[2px]">
@@ -239,7 +317,8 @@ export function VmGrid({ vms }: { vms: Vm[] }) {
           <AgGridReact<Vm>
             theme={gridTheme}
             rowData={filtered}
-            columnDefs={columns}
+            columnDefs={columnDefs}
+            overlayNoRowsTemplate="No virtual machines"
             defaultColDef={defaultColDef}
             quickFilterText={search}
             rowSelection={rowSelection}

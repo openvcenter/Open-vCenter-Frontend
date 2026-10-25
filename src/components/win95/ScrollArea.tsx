@@ -29,6 +29,12 @@ type ScrollAreaProps = {
   children: React.ReactNode;
   className?: string;
   viewportClassName?: string;
+  /** ARIA attributes for the scrolling element itself (e.g. a tab panel), so
+   *  callers never need a wrapper between the viewport and their content. */
+  viewportProps?: Pick<
+    React.HTMLAttributes<HTMLDivElement>,
+    "id" | "role" | "aria-labelledby"
+  >;
   /** Which bars may appear (each still only shows when its axis overflows). */
   orientation?: "vertical" | "horizontal" | "both";
 };
@@ -36,11 +42,17 @@ type ScrollAreaProps = {
 export function ScrollArea(props: ScrollAreaProps) {
   const { def } = useTheme();
   if (def.nativeScrollbars) {
-    const { children, className, viewportClassName, orientation = "both" } =
-      props;
+    const {
+      children,
+      className,
+      viewportClassName,
+      viewportProps,
+      orientation = "both",
+    } = props;
     return (
       <div className={cn("relative overflow-hidden", className)}>
         <div
+          {...viewportProps}
           className={cn(
             "absolute inset-0",
             orientation === "vertical"
@@ -63,6 +75,7 @@ function PaintedScrollArea({
   children,
   className,
   viewportClassName,
+  viewportProps,
   orientation = "both",
 }: ScrollAreaProps) {
   const viewportRef = React.useRef<HTMLDivElement>(null);
@@ -228,6 +241,7 @@ function PaintedScrollArea({
   return (
     <div className={cn("relative overflow-hidden", className)}>
       <div
+        {...viewportProps}
         ref={viewportRef}
         className={cn(
           "scrollbar-none absolute inset-0 overflow-auto",

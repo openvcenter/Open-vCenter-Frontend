@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { HardDrive, Network } from "lucide-react";
+import { HardDrive, Network, Pencil } from "lucide-react";
 import {
   Button,
   GroupBox,
@@ -58,7 +58,6 @@ export function VmSummaryPanel({ vm }: { vm: Vm }) {
         <GroupBox label="Virtual Machine Information">
           <PropertyList
             items={[
-              { label: "State", value: vm.state },
               { label: "Last seen", value: relTime(vm.lastSeen) },
               { label: "Firmware", value: vm.firmware },
               { label: "Uptime", value: duration(vm.uptimeSec) },
@@ -123,7 +122,20 @@ export function VmSummaryPanel({ vm }: { vm: Vm }) {
 
       <div className="grid gap-3 md:grid-cols-2">
         <GroupBox label="Notes">
+          <div className="mb-2 flex justify-end">
+            {/* notes are DB-only and stay editable while the VM is locked */}
+            <Button
+              className="min-w-0 px-2"
+              onClick={() =>
+                vmActionDialog.open({ kind: "notes", vmId: vm.id })
+              }
+            >
+              <Icon icon={Pencil} size={14} />
+              Edit Notes…
+            </Button>
+          </div>
           <textarea
+            aria-label="Notes"
             readOnly
             value={vm.notes ?? ""}
             rows={5}

@@ -41,7 +41,7 @@ export function VirtualNetworksPanel(
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <p className="text-disabled-text">
+        <p>
           {scope.clusterId
             ? "VLANs available to every host in this cluster."
             : "VLANs available on this host."}
@@ -54,7 +54,7 @@ export function VirtualNetworksPanel(
       {vlans.isLoading ? (
         <p className="text-disabled-text">Loading…</p>
       ) : list.length === 0 ? (
-        <p className="text-disabled-text">No VLANs registered yet.</p>
+        <p>No VLANs yet. Add one with Add VLAN.</p>
       ) : (
         <Table>
           <thead>
@@ -78,6 +78,7 @@ export function VirtualNetworksPanel(
                     <Button
                       className="min-w-0 px-1.5"
                       title="Edit"
+                      aria-label={`Edit VLAN ${v.name}`}
                       onClick={() => setEditing(v)}
                     >
                       <Icon icon={Pencil} size={13} />
@@ -85,6 +86,7 @@ export function VirtualNetworksPanel(
                     <Button
                       className="min-w-0 px-1.5"
                       title="Delete"
+                      aria-label={`Delete VLAN ${v.name}`}
                       disabled={del.isPending}
                       onClick={() => remove(v)}
                     >

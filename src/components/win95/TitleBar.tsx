@@ -9,6 +9,8 @@ export interface TitleBarProps {
   onMinimize?: () => void
   onMaximize?: () => void
   onClose?: () => void
+  /** id on the title text, so a dialog can point `aria-labelledby` at it. */
+  titleId?: string
 }
 
 function TitleButton({
@@ -45,6 +47,7 @@ export function TitleBar({
   onMinimize,
   onMaximize,
   onClose,
+  titleId,
 }: TitleBarProps) {
   return (
     <div
@@ -54,7 +57,9 @@ export function TitleBar({
       {icon ? (
         <span className="ui-titlebar-icon grid place-items-center">{icon}</span>
       ) : null}
-      <span className="ui-titlebar-title truncate">{title}</span>
+      <span id={titleId} className="ui-titlebar-title truncate">
+        {title}
+      </span>
       <div className="ui-titlebar-controls">
         {onMinimize ? (
           <TitleButton
