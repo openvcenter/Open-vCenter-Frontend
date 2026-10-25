@@ -1,5 +1,6 @@
 import * as React from "react";
 import {
+  Check,
   Clipboard as ClipboardIcon,
   Keyboard as KeyboardIcon,
   Maximize2,
@@ -9,6 +10,7 @@ import {
 import type * as Guacamole from "guacamole-common-js";
 import {
   Button,
+  Icon,
   StatusBar,
   StatusBarPanel,
   Toolbar,
@@ -17,6 +19,8 @@ import {
 } from "~/components/win95";
 
 type ConnState = "connecting" | "connected" | "disconnected" | "error";
+/** Where a connection attempt is, driven only by real client events. */
+type Phase = "loading" | "tunnel" | "waiting";
 
 export interface GuacamoleConsoleProps {
   /** Base URL of the Guacamole HTTP tunnel servlet (…/tunnel). */
@@ -72,6 +76,7 @@ export function GuacamoleConsole({
   const keyboardRef = React.useRef<Guacamole.Keyboard | null>(null);
 
   const [connState, setConnState] = React.useState<ConnState>("connecting");
+  const [phase, setPhase] = React.useState<Phase>("loading");
   const [statusText, setStatusText] = React.useState("");
   const [attempt, setAttempt] = React.useState(0);
   const [showClipboard, setShowClipboard] = React.useState(false);
@@ -85,6 +90,7 @@ export function GuacamoleConsole({
 
     setConnState("connecting");
     setStatusText("Connecting…");
+    setPhase("loading");
 
     let client: Guacamole.Client | null = null;
     let keyboard: Guacamole.Keyboard | null = null;
@@ -97,6 +103,7 @@ export function GuacamoleConsole({
         (mod as { default?: typeof import("guacamole-common-js") }).default ??
         mod;
       if (cancelled || !displayRef.current) return;
+      setPhase("tunnel");
 
       const width = Math.max(container.offsetWidth, 640);
       const height = Math.max(container.offsetHeight, 480);
@@ -136,6 +143,7 @@ export function GuacamoleConsole({
           setStatusText("Disconnected");
         } else if (state === 1 || state === 2) {
           setConnState("connecting");
+          setPhase(state === 2 ? "waiting" : "tunnel");
         }
       };
       client.onerror = (error: Guacamole.Status) => {
@@ -369,8 +377,7 @@ export function GuacamoleConsole({
 
         {connState === "connecting" ? (
           <Overlay>
-            <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-console-text border-t-transparent" />
-            <p>Connecting to {hostname}…</p>
+            <ConnectLog phase={phase} target={`${hostname}:${port}`} />
           </Overlay>
         ) : null}
         {connState === "disconnected" ? (
@@ -405,6 +412,46 @@ export function GuacamoleConsole({
         </StatusBarPanel>
       </StatusBar>
     </div>
+  );
+}
+
+const PHASES: Phase[] = ["loading", "tunnel", "waiting"];
+
+/**
+ * The handshake as a short terminal log: each line is a real step of this
+ * attempt (client loaded, tunnel to guacd opening, host answering), ticked off
+ * as the Guacamole client reports it. Nothing is timed or staged.
+ */
+function ConnectLog({ phase, target }: { phase: Phase; target: string }) {
+  const at = PHASES.indexOf(phase);
+  const lines: Array<[Phase, string]> = [
+    ["loading", "Loading console client"],
+    ["tunnel", "Opening tunnel through guacd"],
+    ["waiting", `Waiting for ${target} to answer`],
+  ];
+  return (
+    <ol
+      aria-live="polite"
+      className="min-w-[260px] space-y-1 text-left font-mono text-console-fg"
+    >
+      {lines.map(([id, text], i) =>
+        i > at ? null : (
+          <li key={id} className="flex items-center gap-2">
+            {i < at ? (
+              <Icon icon={Check} size={12} className="shrink-0" />
+            ) : (
+              <span
+                aria-hidden
+                className="inline-block h-3 w-[7px] shrink-0 bg-console-fg motion-safe:animate-pulse"
+              />
+            )}
+            <span className={i < at ? "text-console-muted" : undefined}>
+              {text}
+            </span>
+          </li>
+        ),
+      )}
+    </ol>
   );
 }
 

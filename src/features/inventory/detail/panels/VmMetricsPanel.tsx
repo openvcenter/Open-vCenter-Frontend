@@ -42,7 +42,7 @@ export function VmMetricsPanel({ vm }: { vm: Vm }) {
   if (samples.length === 0) {
     return (
       <GroupBox label="VM Metrics">
-        <p className="text-disabled-text">
+        <p>
           No samples yet. The host agent posts a metering sample every few
           minutes while metrics are enabled; the last hour is kept.
         </p>

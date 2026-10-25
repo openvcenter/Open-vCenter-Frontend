@@ -13,17 +13,25 @@ export function Window({
   onMinimize,
   onMaximize,
   onClose,
+  titleId,
   className,
   bodyClassName,
   style,
   children,
   ...props
-}: Pick<TitleBarProps, 'title' | 'icon' | 'onMinimize' | 'onMaximize' | 'onClose'> & {
+}: Pick<
+  TitleBarProps,
+  'title' | 'icon' | 'onMinimize' | 'onMaximize' | 'onClose' | 'titleId'
+> & {
   className?: string
   bodyClassName?: string
   style?: React.CSSProperties
   children: React.ReactNode
-} & Pick<React.HTMLAttributes<HTMLDivElement>, 'role' | 'aria-modal'>) {
+} & Pick<
+    React.HTMLAttributes<HTMLDivElement>,
+    'role' | 'aria-modal' | 'aria-labelledby'
+  > &
+  React.RefAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn('ui-window flex flex-col', className)}
@@ -36,6 +44,7 @@ export function Window({
         onMinimize={onMinimize}
         onMaximize={onMaximize}
         onClose={onClose}
+        titleId={titleId}
       />
       <div
         className={cn(

@@ -2,7 +2,11 @@ import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "~/api/client";
 import { Button, GroupBox, PropertyList } from "~/components/win95";
-import { hostAgentConfigQuery, hostAgentInstallQuery } from "~/api/queries";
+import {
+  hostAgentConfigQuery,
+  hostAgentInstallQuery,
+  hostQuery,
+} from "~/api/queries";
 import type { Host } from "~/api/types";
 
 /**
@@ -14,25 +18,46 @@ import type { Host } from "~/api/types";
 export function HostSetupAgentPanel({ host }: { host: Host }) {
   const cfg = useQuery(hostAgentConfigQuery(host.id));
   const install = useQuery(hostAgentInstallQuery(host.id));
+  // poll this host faster while the operator is installing, so the first
+  // check-in shows up within seconds (HostDetail then switches to Summary)
+  useQuery({ ...hostQuery(host.id), refetchInterval: CHECK_IN_POLL_MS });
 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-base">
-        This host has not been contacted by its agent yet. On{" "}
-        <strong>{host.name}</strong>, open an <strong>elevated</strong>{" "}
-        PowerShell and run the command below. It creates{" "}
-        <code>C:\Program Files\ovc-agent</code>, downloads and checksums the
-        agent, writes this <code>config.ini</code>, installs the Windows
-        service, and opens the config in Notepad. Set the two storage paths,
-        save, then <code>Start-Service ovc-agent</code>. This tab disappears
-        once the agent checks in.
+        This host has not been contacted by its agent yet. To install it:
+      </p>
+      <ol className="list-decimal space-y-1 pl-6 text-base">
+        <li>
+          On <strong>{host.name}</strong>, open an <strong>elevated</strong>{" "}
+          PowerShell and run the install command below. It creates{" "}
+          <code>C:\Program Files\ovc-agent</code>, downloads and checksums the
+          agent, writes this <code>config.ini</code>, installs the Windows
+          service and opens the config in Notepad.
+        </li>
+        <li>Set the two storage paths in the config and save it.</li>
+        <li>
+          Run <code>Start-Service ovc-agent</code>.
+        </li>
+      </ol>
+      <p
+        role="status"
+        className="bevel-thin-sunken flex items-center gap-2 bg-window px-2 py-1.5 text-base"
+      >
+        <span
+          aria-hidden
+          className="inline-block h-2 w-2 shrink-0 rounded-full bg-warning motion-safe:animate-pulse"
+        />
+        Waiting for the agent on <strong>{host.name}</strong> to check in. Open
+        vCenter checks every {CHECK_IN_POLL_MS / 1000} seconds and opens the
+        host's Summary when it does.
       </p>
 
       <GroupBox label="Install command (elevated PowerShell)">
         {install.isLoading ? (
           <p className="text-base text-disabled-text">Generating…</p>
         ) : install.isError ? (
-          <p className="text-base text-accent">
+          <p className="text-base text-danger">
             Could not generate an install URL:{" "}
             {install.error instanceof ApiError
               ? install.error.message
@@ -86,7 +111,7 @@ export function HostSetupAgentPanel({ host }: { host: Host }) {
         {cfg.isLoading ? (
           <p className="text-base text-disabled-text">Loading…</p>
         ) : cfg.isError ? (
-          <p className="text-base text-accent">
+          <p className="text-base text-danger">
             Could not load the agent config:{" "}
             {cfg.error instanceof ApiError ? cfg.error.message : String(cfg.error)}
           </p>
@@ -108,6 +133,8 @@ export function HostSetupAgentPanel({ host }: { host: Host }) {
     </div>
   );
 }
+
+const CHECK_IN_POLL_MS = 5000;
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = React.useState(false);

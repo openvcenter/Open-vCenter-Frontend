@@ -24,7 +24,7 @@ export function HostMetricsPanel({ hostId }: { hostId: string }) {
   if (samples.length === 0) {
     return (
       <GroupBox label="Host Metrics">
-        <p className="text-disabled-text">
+        <p>
           No samples yet. The host agent posts a metrics sample every few minutes;
           the last hour is kept.
         </p>

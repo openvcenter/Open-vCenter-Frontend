@@ -83,13 +83,18 @@ export function ConfirmHost() {
       onClose={() => settle(false, false)}
       footer={
         <>
+          {/* a destructive prompt opens on Cancel, so a reflexive Enter is safe */}
           <Button
             className={state.danger ? "font-bold" : ""}
+            data-autofocus={state.danger ? undefined : true}
             onClick={() => settle(true, checked)}
           >
             {state.confirmLabel ?? "OK"}
           </Button>
-          <Button onClick={() => settle(false, false)}>
+          <Button
+            data-autofocus={state.danger ? true : undefined}
+            onClick={() => settle(false, false)}
+          >
             {state.cancelLabel ?? "Cancel"}
           </Button>
         </>

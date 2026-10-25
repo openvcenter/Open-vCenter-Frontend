@@ -6,11 +6,19 @@ import { ApiError } from "~/api/client";
 import { activeTasks } from "./activeTasks";
 import { statusMessage } from "./statusMessage";
 
-export type VmBatchAction = "start" | "stop";
+export type VmBatchAction = "start" | "shutdown" | "stop";
 
 const TRANSITION: Record<VmBatchAction, VmState> = {
   start: "Starting",
+  shutdown: "Stopping",
   stop: "Stopping",
+};
+
+// Same verbs as the single-VM power buttons (powerActions.ts).
+const VERB: Record<VmBatchAction, string> = {
+  start: "Start",
+  shutdown: "Shut down",
+  stop: "Turn off",
 };
 
 /**
@@ -74,7 +82,7 @@ export function useVmBatchPowerAction() {
     },
 
     onSuccess({ queued, failed, total, action, hostIds }) {
-      const verb = action === "start" ? "Power on" : "Power off";
+      const verb = VERB[action];
       if (failed.length === 0) {
         statusMessage.set(
           `${verb}: ${queued} VM${queued === 1 ? "" : "s"} queued`,

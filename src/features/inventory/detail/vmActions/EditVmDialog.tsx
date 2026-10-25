@@ -19,6 +19,7 @@ import { bytes } from "../../format";
 import { confirm } from "../../confirm";
 import { diskSizeGb, isBootDisk, newDiskPath } from "./diskPath";
 import { vmActionDialog } from "./dialogStore";
+import { errorText } from "./errorText";
 
 const START_OPTIONS = [
   { value: "Nothing", label: "Nothing" },
@@ -490,6 +491,9 @@ export function EditVmDialog({
     <Dialog
       title={`Edit "${vm?.name ?? "…"}"`}
       onClose={vmActionDialog.close}
+      // unsaved edits survive a stray backdrop click or Escape
+      dirty={dirty}
+      error={errorText(m.error)}
       width={600}
       footer={
         <>
@@ -511,6 +515,14 @@ export function EditVmDialog({
         <Tabs tabs={TABS} value={tab} onChange={setTab} className="flex-1">
           {tab === "general" && (
             <div className="flex flex-col gap-4">
+              {/* same notice style as the Disks tab: say why fields are grey */}
+              {!off && !locked ? (
+                <p className="bevel-thin-sunken bg-notice-bg p-2 text-notice-text">
+                  <Icon icon={TriangleAlert} size={13} className="mr-1 inline-block align-[-2px]" /> CPU, memory, nested
+                  virtualization, Secure Boot and automatic stop can only
+                  change while the VM is off.
+                </p>
+              ) : null}
               <div className="mx-auto flex w-[99%] flex-col gap-4">
                 {/* `fr`, not `%` - percentage columns don't get the `gap`
                     subtracted from them, so the row quietly overflows its
@@ -899,7 +911,7 @@ export function EditVmDialog({
                 <p className="text-disabled-text">No network adapters.</p>
               ) : null}
               {switchOptions.length === 0 ? (
-                <p className="text-disabled-text">
+                <p>
                   No virtual switches reported for this host - the agent will
                   fall back to the first switch it finds.
                 </p>
@@ -911,19 +923,19 @@ export function EditVmDialog({
             <div className="flex flex-col gap-2">
               {hasSnapshots ? (
                 <p className="bevel-thin-sunken bg-notice-bg p-2 text-notice-text">
-                  <Icon icon={TriangleAlert} size={13} /> Disk changes are
+                  <Icon icon={TriangleAlert} size={13} className="mr-1 inline-block align-[-2px]" /> Disk changes are
                   blocked while the VM has snapshots. Delete every snapshot
                   first.
                 </p>
               ) : disksNeedOff ? (
                 <p className="bevel-thin-sunken bg-notice-bg p-2 text-notice-text">
-                  <Icon icon={TriangleAlert} size={13} /> This is a BIOS
+                  <Icon icon={TriangleAlert} size={13} className="mr-1 inline-block align-[-2px]" /> This is a BIOS
                   (generation 1) VM. Its disks are on the IDE controller, which
                   cannot change while the VM is running - power off the VM to
                   add, expand or remove disks.
                 </p>
               ) : !off ? (
-                <p className="text-disabled-text">
+                <p>
                   The VM is {vm?.state}. Disks can be added and expanded live;
                   removing a disk while running is dangerous.
                 </p>
@@ -1033,7 +1045,7 @@ export function EditVmDialog({
                     {ed.action === "remove" && (
                       <div className="space-y-1">
                         <p className="text-danger">
-                          <Icon icon={TriangleAlert} size={13} /> Destructive -
+                          <Icon icon={TriangleAlert} size={13} className="mr-1 inline-block align-[-2px]" /> Destructive -
                           this disk will be detached from the VM on save.
                         </p>
                         <label className="flex items-center gap-2 text-base">

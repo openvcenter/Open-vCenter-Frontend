@@ -119,7 +119,7 @@ export function MetricChart({
       <figcaption className="text-base font-bold">{title}</figcaption>
       <div className="flex gap-1">
         <div
-          className="flex w-11 shrink-0 flex-col justify-between text-right text-xs text-disabled-text"
+          className="flex w-14 shrink-0 flex-col justify-between text-right text-xs whitespace-nowrap text-disabled-text"
           style={{ height }}
         >
           {gridY.map((g) => (
@@ -233,7 +233,7 @@ export function MetricChart({
       </div>
 
       {/* x-axis time labels, aligned to the vertical gridlines */}
-      <div className="relative ml-12 h-3.5 text-xs text-disabled-text">
+      <div className="relative ml-[60px] h-3.5 text-xs text-disabled-text">
         {xTicks.map((i, k) => (
           <span
             key={i}
@@ -253,7 +253,7 @@ export function MetricChart({
         ))}
       </div>
 
-      <div className="ml-12 flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
+      <div className="ml-[60px] flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
         {series.map((s) => {
           const v = last(s);
           return (

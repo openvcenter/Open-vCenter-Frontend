@@ -619,13 +619,14 @@
   .ui-menu-item {
     border-radius: var(--menu-item-radius);
   }
-  .ui-menu-item:disabled {
+  .ui-menu-item:is(:disabled, [aria-disabled='true']) {
     color: var(--color-disabled-text);
   }
-  .ui-menu-item[data-danger='true']:not(:disabled) {
+  .ui-menu-item[data-danger='true']:not(:disabled, [aria-disabled='true']) {
     color: var(--color-danger);
   }
-  .ui-menu-item:hover:not(:disabled),
+  /* keyboard focus highlights like hover, as in a native menu */
+  .ui-menu-item:is(:hover, :focus-visible):not(:disabled, [aria-disabled='true']),
   .ui-menu-item[data-open='true'] {
     background: var(--menu-item-hover-bg);
     color: var(--menu-item-hover-text);
@@ -649,10 +650,10 @@
   .ui-tab[aria-selected='false'] {
     opacity: var(--tab-inactive-opacity);
   }
-  .ui-tab[aria-selected='false']:hover:not(:disabled) {
+  .ui-tab[aria-selected='false']:hover:not([aria-disabled='true']) {
     background: var(--tab-hover-bg);
   }
-  .ui-tab:disabled {
+  .ui-tab[aria-disabled='true'] {
     color: var(--color-disabled-text);
   }
   .ui-tab[aria-selected='true'] {

@@ -1,5 +1,7 @@
+import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button, PropertyList, Table, Td, Th } from '~/components/win95'
+import { Trash2 } from 'lucide-react'
+import { Button, Icon, PropertyList } from '~/components/win95'
 import {
   clustersQuery,
   foldersQuery,
@@ -7,72 +9,67 @@ import {
   vmsQuery,
 } from '~/api/queries'
 import { FolderIcon } from '../tree/nodeIcons'
-import { useInventorySelection } from '../selection'
 import { organizeDialog } from '../organize/dialogStore'
 import { DetailHeader } from './DetailHeader'
+import { VmGrid } from './VmGrid'
 
 export function FolderDetail({ folderId }: { folderId: string }) {
   const folders = useQuery(foldersQuery({}))
   const clusters = useQuery(clustersQuery())
   const hosts = useQuery(hostsQuery())
-  const vms = useQuery(vmsQuery())
-  const { select } = useInventorySelection()
+  // only this folder's VMs - the backend filters, so a big fleet isn't polled
+  const vms = useQuery(vmsQuery({ folderId }))
 
   const folder = folders.data?.find((f) => f.id === folderId)
+  // a cluster folder spans hosts, so the grid shows which host runs each VM
+  const hostNames = React.useMemo(
+    () =>
+      folder?.clusterId
+        ? new Map((hosts.data ?? []).map((h) => [h.id, h.name]))
+        : undefined,
+    [folder?.clusterId, hosts.data],
+  )
   if (folders.data && !folder) {
     return <div className="p-3 text-disabled-text">Folder not found.</div>
   }
 
   const scope = folder?.clusterId
     ? `Cluster: ${clusters.data?.find((c) => c.id === folder.clusterId)?.name ?? folder.clusterId}`
-    : `Host: ${hosts.data?.find((h) => h.id === folder?.hostId)?.name ?? folder?.hostId}`
-
-  const contents = (vms.data ?? []).filter((v) => v.folderId === folderId)
+    : `Host: ${hosts.data?.find((h) => h.id === folder?.hostId)?.name ?? folder?.hostId ?? '…'}`
 
   return (
     <div className="flex h-full flex-col gap-3 p-3">
       <DetailHeader
         icon={<FolderIcon />}
-        title={folder?.name ?? folderId}
+        title={folder?.name ?? 'Loading folder…'}
         subtitle={scope}
         actions={
-          <>
-            <Button
-              className="min-w-0 px-2"
-              onClick={() =>
-                organizeDialog.open({ kind: 'delete-folder', folderId })
-              }
-            >
-              Delete
-            </Button>
-          </>
+          <Button
+            className="min-w-0 px-2"
+            onClick={() =>
+              organizeDialog.open({ kind: 'delete-folder', folderId })
+            }
+          >
+            <Icon icon={Trash2} size={14} className="text-danger" />
+            Delete Folder
+          </Button>
         }
       />
       <PropertyList
-        items={[{ label: 'Virtual machines', value: contents.length }]}
+        items={[
+          {
+            label: 'Virtual machines',
+            value: vms.data ? vms.data.length : '…',
+          },
+        ]}
       />
-      <Table>
-        <thead>
-          <tr>
-            <Th>Name</Th>
-            <Th>State</Th>
-            <Th>Host</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {contents.map((v) => (
-            <tr
-              key={v.id}
-              className="cursor-default hover:bg-surface-2"
-              onClick={() => select({ kind: 'vm', id: v.id })}
-            >
-              <Td>{v.name}</Td>
-              <Td>{v.state}</Td>
-              <Td>{hosts.data?.find((h) => h.id === v.hostId)?.name ?? v.hostId}</Td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
+      <div className="min-h-0 flex-1">
+        {vms.isError ? (
+          <p className="text-danger">Could not load this folder's VMs.</p>
+        ) : (
+          <VmGrid vms={vms.data ?? []} hostNames={hostNames} />
+        )}
+      </div>
     </div>
   )
 }

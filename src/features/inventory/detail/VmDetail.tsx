@@ -58,7 +58,12 @@ export function VmDetail({ vmId }: { vmId: string }) {
       <DetailHeader
         icon={<VmIcon state={v.state} />}
         title={v.name}
-        subtitle={`${v.state} · ${v.firmware}`}
+        // the state reads in full ink, not the muted subtitle grey
+        subtitle={
+          <>
+            <span className="text-fg">{v.state}</span> · {v.firmware}
+          </>
+        }
         actions={<VmActionsBar vm={v} />}
       />
       <Tabs tabs={tabs} value={active} onChange={setTab} className="flex-1">

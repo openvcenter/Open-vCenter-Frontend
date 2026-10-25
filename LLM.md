@@ -18,6 +18,8 @@ login, a simulated backend in the browser. See [Demo mode](#demo-mode).
 
 Companion docs: `CLAUDE.md` (short working summary of this file),
 `docs/api-contract.md` (REST contract written for the backend team),
+`PRODUCT.md` (users, purpose, positioning and brand commitments),
+`DESIGN.md` (the visual system: tokens, themes, components),
 `README.md` (setup and deployment).
 
 ## Conventions
@@ -32,6 +34,11 @@ Companion docs: `CLAUDE.md` (short working summary of this file),
 - Menu item labels carry **no trailing ellipsis**, even when the item opens a
   dialog (`Hosts Management`, `Edit VM`, `Restart Host`) - in the menu bar, the VM
   More ▾ menu and the host Actions ▾ menu.
+- A disabled menu item is simply greyed out; its label never explains why.
+- Muted `text-disabled-text` is for labels, metadata and short placeholders
+  (property names, axis ticks, "Loading…", "No tags assigned"). A sentence that
+  explains or tells the user what to do (a panel caption, an empty state with a
+  next step) is in default ink: the muted grey is about 2:1 on ButtonFace.
 
 ## Stack
 
@@ -149,13 +156,25 @@ Built from `/clusters`, `/hosts`, `/folders`, `/vms` and `/templates`:
 | Selection                                                  | Header (icon · title · subtitle · actions)                                                     | Tabs / body                                                                                                                                                                                                                       |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | none                                                       | -                                                                                              | `EmptyDetail`: "Select a cluster, host, or virtual machine."                                                                                                                                                                      |
-| cluster                                                    | Layers · name · "N host(s) · M VM(s)"                                                          | **Hosts** (click a row to select the host) · **VM Startup Ordering** · **Virtual Networks** (cluster VLANs) · **Events** (admin)                                                                                                  |
+| cluster                                                    | Layers · name · "N host(s) · M VM(s)"                                                          | **Hosts** (click or Enter on a row selects the host; Status shows `HostStatusLabel`) · **VM Startup Ordering** · **Virtual Networks** (cluster VLANs) · **Events** (admin)                                                                                                  |
 | host whose agent was never seen (`agent.lastSeen == null`) | host icon · name · fqdn · Console                                                              | **Setup Agent** only (+ **Events** for an admin)                                                                                                                                                                                  |
 | host whose agent checked in at least once                  | host icon · name · fqdn · [Update Agent → vX] [Actions ▾] [Console]                            | **Summary** (Host Information + hardware) · **Virtual Machines** (ag-grid) · **Host Metrics** · **Configuration** (VM Startup Ordering, Network Adapters, Virtual Switches, Virtual Networks, Fibre Channel Adapters) · **Events** (admin) |
-| folder                                                     | Folder · name · "Cluster: X" or "Host: Y" · Delete                                             | VM count + VM table (click a row to select the VM)                                                                                                                                                                                |
-| templatefolder                                             | Folder · "Templates" · scope                                                                   | template table (click a row to select the template)                                                                                                                                                                               |
+| folder                                                     | Folder · name · "Cluster: X" or "Host: Y" · Delete Folder                                      | VM count + `VmGrid` of `GET /vms?folderId=` (search, filters, batch power; a Host column on cluster folders)                                                                                                                      |
+| templatefolder                                             | Folder · "Templates" · scope                                                                   | template table (click or Enter on a row selects the template; an empty-state row when there are none)                                                                                                                           |
 | template                                                   | Package · name · "cluster › host" · Deploy new VM…                                             | property list + notes                                                                                                                                                                                                             |
-| vm                                                         | state icon · name · "state · firmware" · power buttons, Refresh, More ▾, lock badge            | **Summary** · **VM Metrics** (only when `metricsEnabled`) · **Snapshots** · **Console** (greyed out while Off / Paused) · **Events** (admin)                                                                          |
+| vm                                                         | state icon · name · "state · firmware" (state in `text-fg`) · power buttons (Delete set apart by a separator), Refresh, More ▾, lock badge | **Summary** · **VM Metrics** (only when `metricsEnabled`) · **Snapshots** · **Console** (greyed out while Off / Paused) · **Events** (admin)                                                                          |
+
+**VM Startup Ordering** (cluster tab and host ▸ Configuration,
+`panels/VmStartupOrderingPanel.tsx`) lists VMs in boot order. The `#` column is a
+position shared by VMs with the same delay (they start together); VMs with no
+automatic start come last, unnumbered. The cluster tab loads its VMs per member host
+(`hostVmsQuery`), never the whole fleet, and adds HA and Host columns; inside a
+host's Configuration the Host column is hidden (`showHost={false}`), since every
+row is that host.
+
+Metric charts (`panels/MetricChart.tsx`) keep a fixed 56 px, no-wrap y-axis gutter
+so unit labels like "2.4 MB/s" never wrap or clip; the time axis and legend are
+offset to match (`ml-[60px]`).
 
 The VM **Summary** tab (`panels/VmSummaryPanel.tsx`) stacks: the offline-host notice,
 then a first row of **Virtual Machine Information** (40%) · **Configuration** (35%) ·
@@ -163,9 +182,10 @@ then a first row of **Virtual Machine Information** (40%) · **Configuration** (
 **Notes** and **Tags** side by side (half width each, `VmTagsBox`), then Network
 adapters and Disks.
 
-- Virtual Machine Information lists State, Last seen, Firmware, Uptime, Created,
+- Virtual Machine Information lists Last seen, Firmware, Uptime, Created,
   Folder, Host (the node running the VM; clustered hosts only), VM GUID, Config
-  path and Mounted ISO ("None" when empty).
+  path and Mounted ISO ("None" when empty). State is not repeated here: the header
+  right above shows it.
 - Configuration lists Guest OS (`vm.guestOs`, "-" until the agent reports it), CPU,
   CPU usage, Memory, Memory demand, **Provisioned space** (sum of the disks'
   `sizeBytes`; "-" with no disks), Secure Boot ("Not supported" on BIOS, else
@@ -408,7 +428,7 @@ task whose agent never answers still ends as `timeout` through the backend sweep
 | Data                                   | Key                                                                              | Refetch                                |
 | -------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------- |
 | clusters / cluster                     | `['clusters']` / `['clusters', id]`                                              | 30 s                                   |
-| hosts / host / host VMs / host metrics | `['hosts', {clusterId}]` / `['hosts', id]` / `[… , 'vms']` / `[…, 'metrics']`    | 15 s (host VMs 10 s)                   |
+| hosts / host / host VMs / host metrics | `['hosts', {clusterId}]` / `['hosts', id]` / `[… , 'vms']` / `[…, 'metrics']`    | 15 s (host VMs 10 s; a host 5 s while its Setup Agent tab is open) |
 | host templates / ISOs                  | `['hosts', id, 'templates' \| 'isos']`                                           | no polling                             |
 | agent config / install URL             | `['hosts', id, 'agent-config' \| 'agent-install']`                               | staleTime 5 min / 30 s (tokenized URL) |
 | folders                                | `['folders', params]`                                                            | 15 s                                   |
@@ -511,7 +531,12 @@ Always invalidate by prefix: `['vms']`, `['hosts']`, `['tasks']` and so on.
 | VM (`VmIcon`, 13 px)                           | by state (next table)  | by state                         |
 | App window (title bar)                         | `HardDrive`            | `text-title-text`                |
 
-### VM state icon (`STATE_ICON`; used in the tree and the VM detail header)
+### VM state icon (`STATE_ICON`; used in the tree, the VM detail header and every VM table)
+
+In tables and grids the state is `VmStateLabel` (icon + state name): the VM grid's
+State column, VM Startup Ordering. Host status in tables is `HostStatusLabel`
+(`HostIcon` + Online / Offline): Cluster ▸ Hosts, Host Summary.
+
 
 A transitional state uses the same icon plus `animate-pulse`.
 
@@ -529,12 +554,15 @@ A transitional state uses the same icon plus `animate-pulse`.
 | ---------- | --------- | ----------- | ----- | ------------------ | ---------------------------------------------- |
 | `start`    | Start     | `Play`      | green | Off, Saved, Paused | -                                              |
 | `pause`    | Pause     | `Pause`     | amber | Running            | -                                              |
-| `shutdown` | Shut Down | `Power`     | -     | Running            | -                                              |
-| `stop`     | Turn Off  | `Square`    | red   | Running, Paused    | "Unsaved data in the guest will be lost."      |
+| `shutdown` | Shut Down | `Power`     | -     | Running            | "Shut down this VM? The guest operating system is asked to shut down." |
+| `stop`     | Turn Off  | `Square`    | red   | Running, Paused    | danger: "Unsaved data in the guest will be lost." |
 | `restart`  | Restart   | `RotateCcw` | -     | Running            | "Restart this VM?"                             |
 | `delete`   | Delete    | `Trash2`    | red   | Off, Saved         | danger + checkbox "Also delete all its files…" |
 
-VM grid batch actions: **Power On** `Play` (green) · **Power Off** `Power` (red).
+The header buttons, the console toolbar and the VM grid's batch buttons all read
+this table (label, icon, colour, allowed states, confirmation), so they can't
+disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Power` ·
+**Turn Off (n)** `Square`.
 
 ### Icons by screen
 
@@ -544,9 +572,10 @@ VM grid batch actions: **Power On** `Play` (green) · **Power Off** `Power` (red
 | VM search dialog                         | field `Search` · state column `VmIcon` · Previous / Next page `ChevronLeft` / `ChevronRight`                                                                                                                                                                                                                                                                                                  |
 | VM header                                | Refresh `RefreshCw` · More ▾ `MoreHorizontal` · lock badge `Lock`                                                                                                                                                                                                                                                                                                                             |
 | VM "More" menu                           | Edit VM `Pencil` · Rename `TextCursorInput` · Edit Notes `Pencil` · Move to Folder `FolderInput` · Move Storage `HardDrive` · Edit AutoStart `AlarmClock` · Mount / Eject DVD `Disc` · Migrate `Move` · Enable HA `ShieldCheck` · Disable HA `ShieldX` · Clone `Copy` · Export as Template `FileUp` · Enable / Disable Metrics `Gauge` · Remove from Inventory `Trash2` · Force unlock `Lock` |
-| VM Summary                               | Open Web Console `ExternalLink` · Download RDP `Download` · no-thumbnail placeholder `Monitor` (`text-console-muted` on `bg-console-bg`) · Edit Network… `Network` · Edit Disks… `HardDrive` · Assign Tag… `Tag` · tag chip `Tag` · remove a tag `X`                                                                                                                                                                   |
+| VM Summary                               | Open Web Console `ExternalLink` · Download RDP `Download` · no-thumbnail placeholder `Monitor` (`text-console-muted` on `bg-console-bg`) · Edit Notes… `Pencil` · Edit Network… `Network` · Edit Disks… `HardDrive` · Assign Tag… `Tag` · tag chip `Tag` · remove a tag `X`                                                                                                                                                                   |
+| Folder header                            | Delete Folder `Trash2` (`text-danger`)                                                                                                                                                                                                                                                                                                                                                        |
 | Host header                              | Console `Monitor` · Actions ▾ `MoreHorizontal`                                                                                                                                                                                                                                                                                                                                                |
-| Host Actions menu                        | Refresh Hardware `Cpu` · Refresh VMs `RefreshCw` · Resume Node `Play` · Pause Node `Pause` · Restart Host `Power` (danger item)                                                                                                                                                                                                                                                               |
+| Host Actions menu                        | Refresh Hardware `Cpu` · Refresh VMs `RefreshCw` · Resume Node `Play` · Pause Node `Pause` · Restart Host `Power` (danger item)                                                                                                                                                                       |
 | Console toolbar (`GuacamoleConsole`)     | Disconnect `Unplug` · Reconnect `RefreshCw` · Clipboard `Clipboard` · Ctrl+Alt+Del `Keyboard` · Fullscreen `Maximize2`                                                                                                                                                                                                                                                                        |
 | Console VM controls (`ConsoleVmActions`) | Start `Play` · Shut Down `Power` · Turn Off `Square` · Restart `RotateCcw` · Mount DVD `Disc` · Eject DVD `DiscAlbum`                                                                                                                                                                                                                                                                         |
 | Console unavailable (`ConsoleUnavailable`) | `MonitorOff` (`text-console-muted` on `bg-console-bg`, text `text-console-fg`)                                                                                                                                                                                                                                                                                                                |
@@ -570,6 +599,8 @@ VM grid batch actions: **Power On** `Play` (green) · **Power Off** `Power` (red
 | Status bar connection                                   | Connected `text-success` · Disconnected `text-accent`                                                                                     |
 | Demo mode (status bar)                                  | **DEMO MODE** badge `bg-notice-bg text-notice-text` · connection `● Simulated` `text-success`                                            |
 | Console connection dot (`GuacamoleConsole` `STATE_DOT`) | connecting `bg-warning` · connected `bg-success` · disconnected `bg-disabled-text` · error `bg-danger`                                    |
+| Setup Agent "waiting for check-in" dot                  | `bg-warning`, pulsing under `motion-safe`                                                                                                 |
+| Console connecting log (`ConnectLog`)                   | lines `text-console-fg` · finished steps `text-console-muted` with `Check` · cursor `bg-console-fg`                                        |
 | Console display and overlays                            | `bg-console-bg` (overlay `bg-console-bg/80`) · text `text-console-text` · detail `text-console-subtle` · error title `text-console-error` |
 | Metric chart series                                     | `var(--color-chart-1…5)`: CPU 1, memory 2, network rx 3 / tx 4, disk 5                                                                    |
 
@@ -716,14 +747,21 @@ VM grid batch actions: **Power On** `Play` (green) · **Power Off** `Power` (red
   Restarting, pause → Pausing, delete → Deleting.
 - **Delete** asks for a danger confirmation with the checkbox "Also delete all its
   files and folders from disk", which sends `DELETE /vms/:id?remove_files=true`.
-- **Console toolbar** (`ConsoleVmActions`): Start only when Off; Shut Down, Turn Off
-  and Restart only when Running, each with a confirmation.
+- **Shut Down, Turn Off and Restart** ask for confirmation (Turn Off as a danger
+  prompt). A danger prompt opens with focus on Cancel.
+- **Console toolbar** (`ConsoleVmActions`): Start, Shut Down, Turn Off and Restart,
+  enabled by the same power matrix and with the same confirmations as the header.
 - **Batch** (host ▸ Virtual Machines grid):
   - only Running or Off VMs are selectable;
-  - the first selected row locks the state, so a batch is all Running (Power Off)
-    or all Off (Power On);
-  - one request per VM (`start` / `stop`), since there is no batch endpoint;
-  - a confirmation lists the VMs, and partial failures are reported by name.
+  - the first selected row locks the state, so a batch is all Running (Shut Down
+    or Turn Off) or all Off (Start);
+  - one request per VM (`start` / `shutdown` / `stop`), since there is no batch
+    endpoint;
+  - a confirmation lists the VMs; Turn Off is a danger prompt that adds "Unsaved
+    data in the guests will be lost." Partial failures are reported by name.
+- The grid (host ▸ Virtual Machines, folder detail) shows state with
+  `VmStateLabel`, has an "Unknown" state filter for VMs stranded on an offline
+  host, and an optional Host column (`hostNames`).
 
 ### VM locks
 
@@ -733,6 +771,7 @@ VM grid batch actions: **Power On** `Play` (green) · **Power Off** `Power` (red
 - **UI while locked**:
   - a `Lock` badge "<task label>…" in the VM header (the tooltip shows who and when);
   - the power buttons and every "More" item are disabled;
+  - Snapshot actions are disabled, with a notice that names the reason;
   - Edit VM shows a notice and cannot save.
 - **Admin tools**:
   - "Force unlock (admin)" in the More menu (danger confirmation);
@@ -746,7 +785,8 @@ VM grid batch actions: **Power On** `Play` (green) · **Power Off** `Power` (red
 - When a host is offline, all its VMs read `Unknown`, and every agent-backed call
   returns `409 HOST_OFFLINE`.
 - **UI**:
-  - every More item is disabled, and so are the Summary Console box buttons;
+  - every More item is disabled, and so are the Summary Console box buttons and the
+    Snapshot actions;
   - Refresh only invalidates the cache (no task is queued);
   - **Remove from Inventory** appears.
 - **Remove from Inventory** is `DELETE /vms/:id/from-inventory`: a DB-only delete
@@ -757,7 +797,10 @@ VM grid batch actions: **Power On** `Play` (green) · **Power Off** `Power` (red
 
 ### VM "More" menu (`detail/VmActionsBar.tsx`)
 
-When the VM is locked or its host is offline, every item below is disabled.
+When the VM is locked or its host is offline, every item below is disabled. Menu
+labels never carry the reason an item is disabled (as in vCenter); the header lock
+badge and the Summary offline notice explain the VM's state. The lock / offline /
+transition rule lives in `actions/useVmActionBlock.ts`.
 
 | Item                     | Available when                                                                                                                                            | Result                                     |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
@@ -770,11 +813,11 @@ When the VM is locked or its host is offline, every item below is disabled.
 | Mount DVD / Eject DVD   | Mount when `dvdPath` is empty (pick one of the host's ISOs); Eject when a DVD is mounted (confirmation)                                                   | `mount_dvd` / `eject_dvd`                  |
 | Migrate VM              | shown only on a clustered host; enabled only when `highlyAvailable` (otherwise "(requires HA)"). The target is another node from `hardware.cluster.nodes` | `vm_migrate`                               |
 | Enable HA / Disable HA   | clustered host only (confirmation)                                                                                                                        | `enable_ha` / `disable_ha`                 |
-| Clone VM                | shown only when the VM is **Off**                                                                                                                         | wizard in clone mode                       |
+| Clone VM                | VM **Off** (shown disabled otherwise)                                                                                                                     | wizard in clone mode                       |
 | Export as Template      | VM **Off**. Name `[A-Za-z0-9_-]+`, optional notes                                                                                                         | `vm_export_template`                       |
 | Enable / Disable Metrics | toggles on `metricsEnabled`                                                                                                                               | `vm_enable_metrics` / `vm_disable_metrics` |
-| Remove from Inventory   | host offline only                                                                                                                                         | DB-only delete                             |
-| Force unlock (admin)     | VM locked **and** the user is an admin                                                                                                                    | `DELETE /vm-locks/:vmId`                   |
+| Remove from Inventory   | host offline only (danger item)                                                                                                                           | DB-only delete                             |
+| Force unlock (admin)     | VM locked **and** the user is an admin (danger item)                                                                                                      | `DELETE /vm-locks/:vmId`                   |
 
 - **Header Refresh**: runs the `refresh` action (the agent re-inventories this VM,
   with no lock). When the host is offline it only invalidates the cache.
@@ -784,8 +827,22 @@ When the VM is locked or its host is offline, every item below is disabled.
   - "Open Web Console" → `/console?vm=` in a new browser tab;
   - "Download RDP" → `<vm name>.rdp`, which targets the host on port 2179 with
     `pcb:s:<vmUuid>` and `negotiate security layer:i:0`.
-- **Snapshots tab**: Create snapshot… (optional name), Restore (confirmation) and
-  Remove (danger confirmation), sending `snapshot_*` with `snapshot_id`.
+- **Snapshots tab**: Create snapshot… (optional name), Restore (danger confirmation
+  that warns the current state is lost) and Remove (danger confirmation), sending
+  `snapshot_*` with `snapshot_id`. All three are disabled while the VM is locked,
+  its host is offline or it is mid-transition (`useVmActionBlock`), with a notice
+  naming the reason. With no snapshots it reads "No snapshots. Take one before a
+  risky change such as patching or an upgrade: Restore returns the VM to that
+  point."
+- **Summary ▸ Notes** has an Edit Notes… button (the same dialog as the More item).
+- **VM action dialogs** keep OK disabled while the request is in flight, and a
+  failed request shows its error inline above the buttons (the dialog stays open;
+  the status bar also gets it). Edit VM ignores the backdrop and Escape while it
+  has unsaved changes; ✕ and Cancel still close it.
+- **Edit VM ▸ General** on a VM that isn't Off shows a notice: "CPU, memory,
+  nested virtualization, Secure Boot and automatic stop can only change while the
+  VM is off." (the same notice style as
+  the Disks tab).
 
 ### Create / Clone / Deploy wizard (`create/CreateVmDialog.tsx`)
 
@@ -969,6 +1026,12 @@ The Actions menu appears only after the agent has responded at least once.
   - The installer creates `C:\Program Files\ovc-agent`, downloads and checksums the
     agent, writes `config.ini`, installs the service and opens the config.
   - The operator sets the two storage paths and runs `Start-Service ovc-agent`.
+  - The tab lays this out as three numbered steps, then a "Waiting for the agent on
+    <host> to check in" status line. While the tab is open, the host is polled every
+    5 s instead of 15 s.
+  - When the first check-in lands while the host is selected, the status bar says
+    "<host>: the agent checked in - the host is ready to manage" and the detail
+    switches to Summary (`HostDetail`, keyed by host id).
   - The tab also shows `config.ini` (`GET /hosts/:id/agent-config`), which carries
     the per-host RabbitMQ credentials.
   - The tab disappears once `agent.lastSeen` is set.
@@ -1008,6 +1071,12 @@ ACTIVE_BINARY`.
   - The toolbar holds the VM power and DVD controls, then Disconnect, Reconnect,
     Clipboard, Ctrl+Alt+Del and Fullscreen, with a status bar and connecting/error
     overlays.
+  - The connecting overlay is a short phosphor-green log (`ConnectLog`, mono on
+    `text-console-fg`): "Loading console client", "Opening tunnel through
+    guacd", "Waiting for <host>:<port> to answer". Each line appears and is
+    ticked (`Check`) only when the Guacamole client reports that step (module
+    loaded, state 1, state 2). Nothing is timed. The current line has a block
+    cursor that pulses only under `motion-safe`.
 - **Host RDP console**: the host header's Console button (host online, with an
   address) opens `/console?host=`, which connects on port 3389 with `security=any`.
 - **Tunnel** (`src/routes/webrdp/tunnel.ts` + `src/guacd/`): the browser calls
@@ -1332,9 +1401,10 @@ src/
                               (useTheme / useTreeBehavior).
   components/win95/           Presentational primitives: Window, TitleBar, MenuBar, Menu,
                               Toolbar (+ToolbarButton/Separator), TreeView, SplitPane, Tabs,
-                              GroupBox, Table/Th/Td/PropertyList, ProgressBar, Button,
-                              TextField, Select, Dropdown, Dialog, StatusBar(+Panel),
-                              ScrollArea, Icon, ClientOnly. bevel.ts = cn() + cva recipes.
+                              GroupBox, Table/Th/Td/ActionRow/PropertyList, ProgressBar,
+                              Button, TextField, Select, Dropdown, Dialog, StatusBar(+Panel),
+                              ScrollArea, Icon, ClientOnly. bevel.ts = cn() + cva recipes,
+                              rovingFocus.ts = moveFocus() (arrow keys in composites).
   components/                 Login.tsx, DefaultCatchBoundary, NotFound.
   auth/                       The ONLY place auth logic lives (see Auth).
   demo/                       Demo mode (see Demo mode): env.ts (server flag, demo
@@ -1373,15 +1443,17 @@ src/
                               VmGrid (ag-grid + batch power)
       vmActions/              dialogStore, VmActionDialogs (rename, migrate, move storage,
                               autostart, mount DVD, export template, notes, snapshot),
-                              EditVmDialog, storage.ts (placement rules), diskPath.ts
+                              EditVmDialog, storage.ts (placement rules), diskPath.ts,
+                              errorText.ts (inline dialog errors)
       panels/                 VmSummary, VmMetrics, VmSnapshots, VmConsole, VmTasks
                               (TasksPanel), HostHardware(+Details), HostMetrics,
-                              HostConfiguration, HostSetupAgent, HostAgent, HostConsole,
+                              HostConfiguration, HostSetupAgent, HostConsole,
                               VirtualNetworks, VmStartupOrdering, SectionList, MetricChart,
                               GuacamoleConsole, ConsoleVmActions, ConsoleUnavailable,
                               webrdp.ts, rdpFile.ts
     actions/                  powerActions, useVmPowerAction, useVmBatchPowerAction,
-                              useVmManagementAction, TaskWatcher, activeTasks, statusMessage
+                              useVmManagementAction, useVmActionBlock, TaskWatcher,
+                              activeTasks, statusMessage
     tasks/                    TasksDock, TaskHistoryDialog, TaskDetailsDialog, taskLabels
     events/                   EventsHistoryDialog, EventsTable, EventDetailsDialog, eventLabels (admin)
     locks/                    VmLocksDialog (admin)
@@ -1463,6 +1535,25 @@ For a product demo with no backend at all, run the same image with
   Win95 `Dialog`: `await confirm({ title, message, danger })` from
   `features/inventory/confirm.tsx`. Report errors with `statusMessage.set(...)`.
 - **VM iconography**: always the transport-control icons (see Icons).
+- **Keyboard model of the win95 primitives** (keep it when adding widgets):
+  - `Tabs`, `Menu` and `SectionList` are one Tab stop each; arrows / Home / End
+    move inside (`moveFocus`). Tabs and SectionList select on arrival. `Menu`
+    opens on Enter / Space / ArrowDown with focus on the first item; a mouse click
+    opens it with focus on the list itself (no item highlighted until the pointer
+    or an arrow reaches one). Escape closes it back to its button, and it returns
+    focus to its button before running an item. Item labels never wrap.
+  - Disabled tabs and menu items use `aria-disabled` (not `disabled`), so they stay
+    reachable and their reason (label or `title`) is read. Style them with
+    `[aria-disabled='true']`.
+  - `Dialog` focuses an `autoFocus` field, else `[data-autofocus]`, else the first
+    control; traps Tab; returns focus to the opener; only the topmost dialog
+    handles Escape (a confirm over Edit VM closes alone). `dirty` makes the
+    backdrop and Escape inert; `error` renders inline above the footer.
+  - A clickable table row is `ActionRow` (focusable, Enter / Space activate),
+    never a bare `<tr onClick>`.
+  - `Tabs` puts `role="tabpanel"` on the `ScrollArea` viewport (`viewportProps`).
+    Never wrap tab content in an extra div: panels like the VM grid size with
+    `h-full` against the viewport and collapse to 0 px inside a wrapper.
 - **Do not add `@tanstack/react-router-with-query`.** It is stuck at 1.130.x, skews
   against router 1.170 and throws a query-stream hydration error. Use a plain
   `<QueryClientProvider>` in `__root`. The server and the client get separate
@@ -1472,7 +1563,14 @@ For a product demo with no backend at all, run the same image with
   produced an SSR 500 and broke client hydration.
 - **`react-resizable-panels` is pinned to v3.** v4 renamed every export.
 - **ag-grid is client-only.** Render it through `<ClientOnly>` and register its
-  modules on the client. It uses the JS Theming API (`themeQuartz.withParams`), not
+  modules on the client.
+- **Every `VmGrid` column has an explicit `colId`.** Without one, ag-grid numbers
+  the valueGetter-only columns itself; when the column set is rebuilt (the
+  selection column changes with each batch lock) the ids drift and cells land under
+  the wrong header. Polled inputs (`hostNames`) are read through a ref plus
+  `refreshCells`, so the column set only changes when a column appears or goes.
+  The grid matches the win95 `Table` density: `rowHeight` 22, `headerHeight` 24,
+  12 px type. It uses the JS Theming API (`themeQuartz.withParams`), not
   CSS themes. The same goes for `guacamole-common-js`, which must be lazy-imported on
   the client.
 - **Route every VM operation by `vm.id`**, never by `vmUuid`. The same `vmUuid` can
