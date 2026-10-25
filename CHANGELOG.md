@@ -8,6 +8,62 @@ All notable changes to ovc-frontend. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-25
+
+### Added
+
+- Keyboard access across the console: tabs, menus and the Configuration section
+  list move with the arrow keys; table rows that open something (cluster hosts,
+  templates) open with Enter; dialogs take focus when they open, keep Tab inside
+  and give focus back when they close.
+- Batch Shut Down in the VM grid, next to Turn Off, so a group of VMs can be shut
+  down gracefully.
+- A folder lists its VMs in the VM grid, with search, state and snapshot filters,
+  batch power actions and a Host column for cluster folders.
+- The VM grid's state filter has "Unknown", to find VMs left on an offline host.
+- Edit Notes button on the VM Summary.
+- Setup Agent tab: numbered install steps and a "waiting for the agent" line. The
+  host is checked every 5 seconds while the tab is open, and the status bar says
+  when the agent checks in.
+- The console's connecting screen shows each real step of the connection.
+
+### Changed
+
+- Batch power uses the same labels, icons and confirmations as the VM header
+  (Start, Shut Down, Turn Off). Turn Off warns that unsaved data will be lost.
+- Shut Down asks for confirmation in the VM header too, as it already did in the
+  console. The console toolbar follows the same power rules as the header.
+- Snapshot actions are disabled while the VM is locked, its host is offline or it
+  is changing state, with a notice saying why. Restore is a danger prompt that
+  says the current state will be lost.
+- Destructive prompts open with Cancel focused. Remove from Inventory and Force
+  unlock are shown as danger items.
+- VM action dialogs keep OK disabled while the request runs and show a failed
+  request's error inside the dialog. Edit VM ignores a stray backdrop click or
+  Escape while it has unsaved changes.
+- Edit VM explains that CPU, memory, nested virtualization, Secure Boot and
+  automatic stop can only change while the VM is off.
+- VM and host state icons in every table; the VM grid is as dense as the other
+  tables.
+- Clone VM is shown disabled, instead of hidden, while the VM is running.
+- Delete is set apart from the other power buttons.
+- VM Startup Ordering numbers VMs that start together with the same position,
+  and a host's Configuration no longer repeats the Host column.
+- Explanatory and empty-state text uses the normal text colour instead of the
+  low-contrast grey.
+- Folder and cluster views load only the VMs they show instead of the whole fleet.
+
+### Fixed
+
+- Metric chart axis labels such as "2.4 MB/s" no longer wrap or get cut off.
+- Pressing Escape in a confirmation opened over another dialog no longer closes
+  both.
+
+### Removed
+
+- The duplicate State row in the VM Summary and the Agent row in the Host Summary
+  (the header and the Status row already show them).
+
 ## [0.3.0] - 2026-10-17
 
 ### Added
@@ -93,7 +149,8 @@ All notable changes to ovc-frontend. The format follows
 
 First public release.
 
-[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.3.0...HEAD
+[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.4.0...HEAD
+[0.4.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.3.0...0.4.0
 [0.3.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.2.0...0.3.0
 [0.2.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.1.2...0.2.0
 [0.1.2]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.1.1...0.1.2
