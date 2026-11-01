@@ -51,6 +51,8 @@ declare namespace NodeJS {
      * Default "resource_access.${client_id}.roles" (Keycloak client roles).
      */
     OIDC_ROLES_CLAIM?: string
+    /** Dot-path to the groups array in the token (same syntax). Default "groups". */
+    OIDC_GROUPS_CLAIM?: string
     /** 32+ byte random secret used by better-auth to seal cookies */
     BETTER_AUTH_SECRET: string
     /** Public base URL of the auth endpoints, e.g. http://localhost:3000/frontend-api/auth */

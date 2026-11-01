@@ -17,7 +17,8 @@ import {
 } from "./eventLabels";
 
 /** The audit log for `params`, newest first, with "Load older events" paging.
- *  Admin only - render it only when `useAuth().isAdmin`. */
+ *  Needs `audit.read` (globally, or on the filtered object) - the backend
+ *  answers 403 otherwise. */
 export function EventsTable({
   params,
   hideType = false,

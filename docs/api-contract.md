@@ -65,19 +65,40 @@ response, error code or polling cadence updates it in the same change (see also
 
 ---
 
-## RBAC
+## Access control
 
-Access is scoped **Cluster > Host > Folder** and enforced **server-side** from the
-authenticated principal:
+Enforced **server-side** from the authenticated principal; the frontend sends no
+identity or scope and only mirrors the result to grey items out.
 
-- the `ADMINISTRATOR` role (a client role in the access token) = unconditional full
-  access, no scope grant needed;
-- other principals see only what their `ScopeGrant`s cover;
-- list endpoints return only the entities the caller may see;
-- direct reads of a forbidden entity return `403` with `error.code = "FORBIDDEN"`;
-- endpoints marked **admin only** below return `403 FORBIDDEN` to everyone else;
-- the frontend sends **no** scope header, so it does not decide access. A signed-in
-  user with **no roles** is stopped at `/access-denied` before any API call.
+- **Privilege**: the smallest unit, e.g. `vm.power`. The catalog is
+  `GET /rbac/catalog`: `vm.power, vm.console, vm.config, vm.snapshot, vm.create,
+  vm.delete, vm.migrate, vm.media, host.maintenance, host.config, host.manage,
+  host.console, cluster.manage, folder.manage, tag.manage, task.cancel, audit.read,
+  settings.manage, rbac.manage`. Reading needs none.
+- **Role**: a set of privileges. Built-in (fixed, not editable): Administrator
+  (every privilege, including future ones), Read-only (visible, no privileges),
+  No access. Editable sample roles: VM Power User, VM Console User, VM
+  Administrator, Host Administrator, Auditor.
+- **Permission**: a role granted to an identity-provider **role or group** (never
+  an individual user) on `global`, a cluster, a host, a folder or a VM, with
+  `propagate` (default true: it also applies below). Roles come from the token at
+  `OVC_OIDC_ROLES_CLAIM`, groups at `OVC_OIDC_GROUPS_CLAIM`.
+- **Resolution**: cluster → host → VM, and cluster (or standalone host) → folder →
+  VM. One level combines the caller's matching rows (on ancestors only propagating
+  ones); a No-access row blocks the level. Per path the most specific level with
+  rows wins. A VM's own rows override everything; otherwise it gets the union of
+  its folder path and host path.
+- **Visibility**: lists return only what is granted, not the objects above it (a
+  folder grant lists that folder and its VMs, not its host or cluster). A direct
+  read of a host / cluster also works when the caller sees a VM on it (VM dialogs
+  read the host). Forbidden calls return `403 FORBIDDEN` (`message` names the
+  missing privilege).
+- The `ADMINISTRATOR` role (`OVC_ADMIN_ROLE`) is a superuser: every privilege
+  everywhere, no permission row.
+- A signed-in user with **no role and no group** is stopped at `/access-denied`
+  before any API call.
+- Each endpoint below names the privilege it needs, on the object it acts on (a
+  create: on the parent). VM actions: see [VM power / lifecycle actions](#vm-power--lifecycle-actions).
 
 ---
 
@@ -113,8 +134,15 @@ See [`src/api/types.ts`](../src/api/types.ts) for the exact TypeScript shapes. S
 | `Task`                  | async operation tracking: `id, kind, status, targetType (vm \| host), targetId, targetName?, requestedBy, progress, progressMessage?, createdAt, startedAt, finishedAt, result, error, correlationId` |
 | `TaskDetail`            | `Task & { requestPayload, responsePayload }`: the raw `AgentRequest` and the latest `AgentResponse`. Only `GET /tasks/:id` returns it |
 | `TaskStatus`            | `queued \| running \| succeeded \| failed \| timeout` |
-| `AuditEvent`            | `id, occurredAt, actorType (user \| system), actorEmail, actorName, action, targetType, targetId, targetName, hostId, clusterId, taskId, outcome (pending \| succeeded \| failed \| timeout), error, details`. See [Audit log](#audit-log-admin-only) |
+| `AuditEvent`            | `id, occurredAt, actorType (user \| system), actorEmail, actorName, action, targetType, targetId, targetName, hostId, clusterId, taskId, outcome (pending \| succeeded \| failed \| timeout), error, details`. See [Audit log](#audit-log) |
 | `AuditEventPage`        | `items: AuditEvent[], nextCursor: string \| null` |
+| `Me`                    | `id, email, displayName, roles, groups, superuser, globalPrivileges` |
+| `RbacCatalog`           | `privileges: { id, group, label }[], vmActions: { [action]: privilege \| null }` |
+| `Role`                  | `id, name, description, builtin, privileges, permissionCount` |
+| `Permission`            | `id, principalType (role \| group), principalId, roleId, roleName, scopeType (global \| cluster \| host \| folder \| vm), scopeId, scopeName, propagate, createdBy, createdAt` |
+| `PermissionList`        | `direct: Permission[], inherited: Permission[]` (inherited = propagating rows on objects above) |
+| `EffectivePermissions`  | `principal {type, id}, superuser, visible, privileges, paths: [{ name (object \| vm \| folder \| host), levels: [{ scopeType, scopeId, scopeName, blocked, winner, permissions }] }]` |
+| `ConsoleTarget`         | `hostname, port, vmGuid \| null` |
 
 Notes on the task fields:
 
@@ -140,7 +168,7 @@ Notes on the task fields:
 | Method | Path                      | Query                                     | Response |
 | ------ | ------------------------- | ----------------------------------------- | -------- |
 | GET    | `/health`                 | -                                         | `{ ok, db, cache, rabbit }` |
-| GET    | `/me`                     | -                                         | `AuthUser & { scopes }` |
+| GET    | `/me`                     | -                                         | `Me`: the caller's roles, groups, `superuser` and global privileges |
 | GET    | `/clusters`               | -                                         | `Cluster[]` |
 | GET    | `/clusters/:id`           | -                                         | `Cluster` |
 | GET    | `/hosts`                  | `clusterId?`                              | `Host[]` |
@@ -149,8 +177,8 @@ Notes on the task fields:
 | GET    | `/hosts/:id/templates`    | -                                         | `Template[]` |
 | GET    | `/hosts/:id/isos`         | -                                         | `Iso[]` |
 | GET    | `/hosts/:id/metrics`      | -                                         | `HostMetricSample[]`: the **last hour**, oldest first |
-| GET    | `/hosts/:id/agent-config` | -                                         | `HostAgentConfig`. **Admin only** (carries RabbitMQ credentials). Re-asserts the host's RabbitMQ user on every call |
-| GET    | `/hosts/:id/agent-install-url` | -                                    | `HostAgentInstall`. **Admin only**. Mints a short-lived HMAC-tokenized `agent-install.ps1` URL (TTL `OVC_AGENT_INSTALL_URL_TTL_SECONDS`). Used by the "Setup Agent" tab |
+| GET    | `/hosts/:id/agent-config` | -                                         | `HostAgentConfig`. `host.manage` (carries RabbitMQ credentials). Re-asserts the host's RabbitMQ user on every call |
+| GET    | `/hosts/:id/agent-install-url` | -                                    | `HostAgentInstall`. `host.manage`. Mints a short-lived HMAC-tokenized `agent-install.ps1` URL (TTL `OVC_AGENT_INSTALL_URL_TTL_SECONDS`). Used by the "Setup Agent" tab |
 | GET    | `/folders`                | `hostId?`, `clusterId?`                   | `Folder[]` (no filter → every folder the caller may see) |
 | GET    | `/vlans`                  | `hostId?`, `clusterId?`                   | `Vlan[]`. `hostId` resolves to the host's own VLANs **plus** its cluster's (if any) |
 | GET    | `/tag-categories`         | -                                         | `TagCategory[]`, by name. Any role |
@@ -158,13 +186,15 @@ Notes on the task fields:
 | GET    | `/vms`                    | `hostId?`, `folderId?`, `state?`          | `Vm[]` |
 | GET    | `/vms/:id`                | -                                         | `Vm` |
 | GET    | `/vms/:id/metrics`        | -                                         | `VmMetricSample[]`: the last hour, oldest first. Empty until metering is enabled on the VM |
+| GET    | `/vms/:id/console`        | -                                         | `ConsoleTarget` `{ hostname, port: 2179, vmGuid }`. `vm.console`. `409 CONSOLE_UNAVAILABLE` when the VM isn't reported yet or the host has no address. Called by the console panel and, server-side, by the Guacamole tunnel |
+| GET    | `/hosts/:id/console`      | -                                         | `ConsoleTarget` `{ hostname, port: 3389, vmGuid: null }`. `host.console`. Same `409` |
 | GET    | `/vms/:id/thumbnail`      | -                                         | `image/jpeg` (320x240): last console frame the agent captured. Only Running VMs are captured, so an Off VM serves its last image. `X-Captured-At` = capture time (ISO 8601; the frontend proxy passes it through); `Cache-Control: private, max-age=60`. 404 `NOT_FOUND` until a first capture (the UI shows "No preview") |
-| GET    | `/vm-locks`               | -                                         | `VmLockEntry[]`. **Admin only** |
+| GET    | `/vm-locks`               | -                                         | `VmLockEntry[]`: the locks of VMs the caller holds `task.cancel` on (all of them, including gone VMs, with it globally) |
 | GET    | `/tasks`                  | `vmId?`, `hostId?`, `status?`, `limit?` (default 50, max 200) | `Task[]`, newest first |
 | GET    | `/tasks/:id`              | -                                         | `TaskDetail` |
 | GET    | `/templates` · `/isos`    | -                                         | flat cross-host lists |
-| GET    | `/agent-binaries`         | `hypervisor?`                             | `AgentBinary[]`. **Admin only**. Uploaded ovc-agent builds, newest first |
-| GET    | `/agent-binaries/storage` | -                                         | `AgentStorageInfo`. **Admin only**. A read-only view of the binary store (`local` / `s3`) |
+| GET    | `/agent-binaries`         | `hypervisor?`                             | `AgentBinary[]`. `host.manage` (global). Uploaded ovc-agent builds, newest first |
+| GET    | `/agent-binaries/storage` | -                                         | `AgentStorageInfo`. `host.manage` (global). A read-only view of the binary store (`local` / `s3`) |
 
 These two routes also exist but are **not** called by the frontend; they are
 authenticated by a short-lived token in the URL:
@@ -178,26 +208,26 @@ authenticated by a short-lived token in the URL:
 
 | Method | Path            | Body | Response |
 | ------ | --------------- | ---- | -------- |
-| POST   | `/clusters`     | `{ name, hypervisor? }` (default `"hyperv"`) | `201 Cluster` |
-| PATCH  | `/clusters/:id` | `{ name }` | `Cluster` (rename) |
-| DELETE | `/clusters/:id` | - | `204`. Only an **empty** cluster (no member hosts) can be deleted; otherwise `400 INVALID`. Cluster-scoped folders go with it (their VMs are detached) |
-| POST   | `/hosts`        | `{ name, clusterId?, hypervisor? }` (default `"hyperv"`; must match the cluster's) | `201 HostDetail`. Also provisions the host's RabbitMQ queues and agent user. `fqdn` / `ipAddress` are filled in by the agent on its first `agent_status` |
-| PATCH  | `/hosts/:id`    | any subset of `{ name, fqdn, clusterId }`. Only keys present in the body are applied; `clusterId: null` → standalone; `fqdn` is normally left to the agent | `HostDetail`. Changing `clusterId` clears every folder assignment for the host's VMs and drops any host-scoped folders |
-| DELETE | `/hosts/:id`    | - | `204`. Cascades: the host's VM records, host-scoped folders, templates and ISOs are deleted. The host's RabbitMQ queues and agent user are torn down (best-effort). The virtualization host itself is not touched |
-| POST   | `/folders`      | `{ name, clusterId? \| hostId? }` (exactly one) | `201 Folder`. `hostId` must be a **standalone** host |
-| PATCH  | `/folders/:id`  | `{ name }` | `Folder` |
-| DELETE | `/folders/:id`  | - | `204`. VMs in the folder are detached (`folderId → null`), not deleted |
-| POST   | `/vlans`        | `{ name, vlanId, description?, isDefault?, clusterId? \| hostId? }` (exactly one scope) | `201 Vlan`. `hostId` must be **standalone**. Setting `isDefault` clears it from every other VLAN in the scope |
-| PATCH  | `/vlans/:id`    | any subset of `{ name, description, isDefault }` (the tag is immutable) | `Vlan` |
-| DELETE | `/vlans/:id`    | - | `204`. VMs already tagged with it are not changed |
-| PATCH  | `/vms/:id`      | `{ folderId }` (`null` → remove from its folder) | `Vm`. The folder must be reachable from the VM's host: a cluster folder needs the host in that cluster; a host folder needs the host to be that (standalone) host. Otherwise `400 INVALID` |
-| POST   | `/tag-categories`     | `{ name }` | `201 TagCategory`. **Admin only**. A bad name → `400 INVALID`; a name already in use (case-insensitive) → `409 DUPLICATE` |
-| PATCH  | `/tag-categories/:id` | `{ name }` | `TagCategory` (rename). **Admin only**. Same name rules |
-| DELETE | `/tag-categories/:id` | - | `204`. **Admin only**. Deletes the category **and all of its tags**, which removes them from every VM. The VMs themselves are not touched |
-| POST   | `/tags`               | `{ name, categoryId?, color? }` (`null` / omitted category → standalone; color defaults to `gray`) | `201 Tag`. **Admin only**. Unknown category → `404`; bad name or a colour outside the palette → `400 INVALID`; name taken in that category (or among standalone tags) → `409 DUPLICATE` |
-| PATCH  | `/tags/:id`           | any subset of `{ name, categoryId, color }`. Only keys present are applied; `categoryId: null` → standalone | `Tag`. **Admin only**. Moving the tag into a category where a VM carrying it already has another tag of that category → `409 TAG_CONFLICT` |
-| DELETE | `/tags/:id`           | - | `204`. **Admin only**. The tag is removed from every VM; the VMs stay |
-| PUT    | `/vms/:id/tags`       | `{ tagIds: string[] }` - the VM's complete tag set (replaces the current one; duplicates ignored) | `Vm`. Any caller who can see the VM. Unknown tag → `404`; two tags of one category → `409 TAG_CONFLICT`. Allowed while the VM is locked or its host is offline (DB-only) |
+| POST   | `/clusters`     | `{ name, hypervisor? }` (default `"hyperv"`) | `201 Cluster`. `cluster.manage` (global) |
+| PATCH  | `/clusters/:id` | `{ name }` | `Cluster` (rename). `cluster.manage` |
+| DELETE | `/clusters/:id` | - | `204`. `cluster.manage`. Only an **empty** cluster (no member hosts) can be deleted; otherwise `400 INVALID`. Cluster-scoped folders go with it (their VMs are detached) |
+| POST   | `/hosts`        | `{ name, clusterId?, hypervisor? }` (default `"hyperv"`; must match the cluster's) | `201 HostDetail`. `host.manage` on the cluster (global for a standalone host). Also provisions the host's RabbitMQ queues and agent user. `fqdn` / `ipAddress` are filled in by the agent on its first `agent_status` |
+| PATCH  | `/hosts/:id`    | any subset of `{ name, fqdn, clusterId }`. Only keys present in the body are applied; `clusterId: null` → standalone; `fqdn` is normally left to the agent | `HostDetail`. `name` / `fqdn`: `host.config`; `clusterId`: `host.manage` on the host **and** on the destination (cluster, or global). Changing `clusterId` clears every folder assignment for the host's VMs and drops any host-scoped folders |
+| DELETE | `/hosts/:id`    | - | `204`. `host.manage`. Cascades: the host's VM records, host-scoped folders, templates and ISOs are deleted. The host's RabbitMQ queues and agent user are torn down (best-effort). The virtualization host itself is not touched |
+| POST   | `/folders`      | `{ name, clusterId? \| hostId? }` (exactly one) | `201 Folder`. `folder.manage` on the cluster / host. `hostId` must be a **standalone** host |
+| PATCH  | `/folders/:id`  | `{ name }` | `Folder`. `folder.manage` |
+| DELETE | `/folders/:id`  | - | `204`. `folder.manage`. VMs in the folder are detached (`folderId → null`), not deleted |
+| POST   | `/vlans`        | `{ name, vlanId, description?, isDefault?, clusterId? \| hostId? }` (exactly one scope) | `201 Vlan`. `host.config` on the cluster / host. `hostId` must be **standalone**. Setting `isDefault` clears it from every other VLAN in the scope |
+| PATCH  | `/vlans/:id`    | any subset of `{ name, description, isDefault }` (the tag is immutable) | `Vlan`. `host.config` |
+| DELETE | `/vlans/:id`    | - | `204`. `host.config`. VMs already tagged with it are not changed |
+| PATCH  | `/vms/:id`      | `{ folderId }` (`null` → remove from its folder) | `Vm`. `vm.config` on the VM **and** `vm.create` on the destination folder (or, for `null`, the VM's host). The folder must be reachable from the VM's host: a cluster folder needs the host in that cluster; a host folder needs the host to be that (standalone) host. Otherwise `400 INVALID` |
+| POST   | `/tag-categories`     | `{ name }` | `201 TagCategory`. `tag.manage`. A bad name → `400 INVALID`; a name already in use (case-insensitive) → `409 DUPLICATE` |
+| PATCH  | `/tag-categories/:id` | `{ name }` | `TagCategory` (rename). `tag.manage`. Same name rules |
+| DELETE | `/tag-categories/:id` | - | `204`. `tag.manage`. Deletes the category **and all of its tags**, which removes them from every VM. The VMs themselves are not touched |
+| POST   | `/tags`               | `{ name, categoryId?, color? }` (`null` / omitted category → standalone; color defaults to `gray`) | `201 Tag`. `tag.manage`. Unknown category → `404`; bad name or a colour outside the palette → `400 INVALID`; name taken in that category (or among standalone tags) → `409 DUPLICATE` |
+| PATCH  | `/tags/:id`           | any subset of `{ name, categoryId, color }`. Only keys present are applied; `categoryId: null` → standalone | `Tag`. `tag.manage`. Moving the tag into a category where a VM carrying it already has another tag of that category → `409 TAG_CONFLICT` |
+| DELETE | `/tags/:id`           | - | `204`. `tag.manage`. The tag is removed from every VM; the VMs stay |
+| PUT    | `/vms/:id/tags`       | `{ tagIds: string[] }` - the VM's complete tag set (replaces the current one; duplicates ignored) | `Vm`. `vm.config`. Unknown tag → `404`; two tags of one category → `409 TAG_CONFLICT`. Allowed while the VM is locked or its host is offline (DB-only) |
 
 Folders, tags and tag categories are created by the frontend and never reported by
 the agent. `host_inventory` carries hardware only. Tags live on the backend's VM row,
@@ -222,6 +252,16 @@ noted. The host agent performs the work asynchronously over RabbitMQ.
 | POST   | `/vms/:id/actions/disable_metrics` | `vm_disable_metrics` |
 | DELETE | `/vms/:id`                         | `vm_delete`. Query `remove_files=true` also deletes the VM's folder and files from the host's disk (irreversible). The default only removes the VM from Hyper-V |
 | DELETE | `/vms/:id/from-inventory`          | _(none: DB only)_. Returns `200 { removed: true }` |
+
+**Privileges** (`GET /rbac/catalog` → `vmActions` is the source of truth): start /
+stop / shutdown / restart / pause → `vm.power`; delete and remove-from-inventory →
+`vm.delete`; rename / edit / notes_edit / startup_change / enable_ha / disable_ha /
+enable_metrics / disable_metrics → `vm.config`; snapshot_* → `vm.snapshot`;
+mount_dvd / eject_dvd → `vm.media`; move_storage → `vm.migrate`; migrate →
+`vm.migrate` **and** `vm.create` on the destination node (or its cluster when the
+node isn't a known host); export_template → `vm.config` and `vm.create` on the VM's
+host; refresh → visibility only. `POST /vms` and `POST /vms/clone` need `vm.create`
+on the target host (clone: the source must be visible).
 
 The backend sets the VM's optimistic transitional state for power actions: start →
 Starting, stop/shutdown → Stopping, restart → Restarting, pause → Pausing, delete →
@@ -370,10 +410,10 @@ snapshots, and while a BIOS (generation 1) VM is running.
 | ------ | -------------------------------------- | ---- | -------- |
 | POST   | `/hosts/:id/actions/refresh_hardware`  | - | `202 { task }`: forces a hardware inventory report |
 | POST   | `/hosts/:id/actions/refresh_inventory` | - | `202 { task }`: forces a VM inventory report |
-| POST   | `/hosts/:id/actions/suspend` \| `suspend_drain` | - | `202 { task }`: **admin only**. Pauses the Failover Cluster node; `suspend_drain` first moves its roles away |
-| POST   | `/hosts/:id/actions/resume` \| `resume_fallback` | - | `202 { task }`: **admin only**. Resumes the node; `resume_fallback` fails its roles back |
-| POST   | `/hosts/:id/actions/restart`           | - | `202 { task }`: **admin only**. Reboots the physical host. The agent refuses while VMs run or, on a cluster node, unless the node is Paused |
-| POST   | `/hosts/:id/actions/update-agent`      | `{ binaryId? }` (default: the active build for the host's hypervisor) | `202 { task }`: **admin only**; see [Agent management](#agent-management-admin-only) |
+| POST   | `/hosts/:id/actions/suspend` \| `suspend_drain` | - | `202 { task }`: `host.maintenance`. Pauses the Failover Cluster node; `suspend_drain` first moves its roles away |
+| POST   | `/hosts/:id/actions/resume` \| `resume_fallback` | - | `202 { task }`: `host.maintenance`. Resumes the node; `resume_fallback` fails its roles back |
+| POST   | `/hosts/:id/actions/restart`           | - | `202 { task }`: `host.maintenance`. Reboots the physical host. The agent refuses while VMs run or, on a cluster node, unless the node is Paused |
+| POST   | `/hosts/:id/actions/update-agent`      | `{ binaryId? }` (default: the active build for the host's hypervisor) | `202 { task }`: `host.manage`; see [Agent management](#agent-management) |
 
 The task `kind` equals the action name (`host_update_agent` for `update-agent`).
 Errors:
@@ -384,14 +424,15 @@ Errors:
 | `409 HOST_OFFLINE`               | the host agent is offline |
 | `409 NOT_CLUSTERED`              | a node action on a host that isn't a Failover Cluster node |
 | `409 HOST_ACTION_IN_PROGRESS`    | another disruptive action (suspend / resume / restart) is still running on the host; `details.taskId` names it |
-| `403 FORBIDDEN`                  | a disruptive action from a non-admin |
+| `403 FORBIDDEN`                  | a disruptive action without `host.maintenance` |
 
-### Agent management (admin only)
+### Agent management
 
 This covers uploading and rolling out the `ovc-agent` binary (the "Agent
 Management" screen) plus host onboarding. See
 `../ovc-backend/docs/agent-queue-contract.md` → `host_update_agent` for the wire
-contract.
+contract. Everything here needs `host.manage` globally, except a rollout to listed
+`hostIds` (`host.manage` on each) and `update-agent` (`host.manage` on the host).
 
 | Method | Path                              | Body | Response |
 | ------ | --------------------------------- | ---- | -------- |
@@ -417,16 +458,18 @@ VM for the task's lifetime, so a second operation can't race it. The read-only
 - The lock is released the moment the task reaches a terminal state (succeeded /
   failed / timeout). It also auto-expires shortly after the task timeout, so a
   crashed worker never strands it.
-- Admin endpoints:
+- Unlock endpoints (`task.cancel`):
   - `GET /vm-locks`: every active lock (each row adds `vmName`, `ttl`, `taskStatus`).
   - `DELETE /vm-locks/:vmId`: force-releases one lock (stale-lock recovery; works
-    even if the VM row is gone). Returns `{ released: boolean }`.
-  - `DELETE /vm-locks`: force-releases every lock. Returns `{ released: n }`.
+    even if the VM row is gone - then `task.cancel` is needed globally). Returns
+    `{ released: boolean }`.
+  - `DELETE /vm-locks`: force-releases every lock (`task.cancel` globally). Returns
+    `{ released: n }`.
 
-  The frontend surfaces these as the admin-only **View ▸ VM Locks** dialog and the
-  "Force unlock (admin)" VM menu item.
+  The frontend surfaces these as the **View ▸ VM Locks** dialog and the
+  "Force unlock" VM menu item.
 
-### Audit log (admin only)
+### Audit log
 
 Who changed what, and when. The backend writes one event per change, in the same
 transaction as the change, so a rejected or rolled-back request leaves no event.
@@ -435,7 +478,7 @@ ids (`targetId`, `hostId`, `clusterId`, `taskId`) are not foreign keys.
 
 | Method | Path            | Query | Response |
 | ------ | --------------- | ----- | -------- |
-| GET    | `/audit-events` | `actor?` (partial email / name), `action?` (exact), `targetType?`, `targetId?`, `hostId?`, `clusterId?`, `outcome?`, `since?` / `until?` (ISO 8601; no offset = UTC; `until` exclusive), `q?` (partial target name / actor), `limit?` (default 50, max 200), `cursor?` | `AuditEventPage`, newest first. **Admin only** (`403` otherwise). Pass `nextCursor` back as `cursor` for the next, older page; `null` = last page. A malformed id → `422`, a malformed cursor → `400 INVALID` |
+| GET    | `/audit-events` | `actor?` (partial email / name), `action?` (exact), `targetType?`, `targetId?`, `hostId?`, `clusterId?`, `outcome?`, `since?` / `until?` (ISO 8601; no offset = UTC; `until` exclusive), `q?` (partial target name / actor), `limit?` (default 50, max 200), `cursor?` | `AuditEventPage`, newest first. `audit.read` globally, or on the object a `clusterId` / `hostId` / `targetId` filter narrows it to (`403` otherwise). Pass `nextCursor` back as `cursor` for the next, older page; `null` = last page. A malformed id → `422`, a malformed cursor → `400 INVALID` |
 
 - `hostId` / `clusterId` match the event's context: a host's filter returns the
   host's own events **and** those of the VMs, folders and VLANs that were on it.
@@ -463,6 +506,28 @@ ids (`targetId`, `hostId`, `clusterId`, `taskId`) are not foreign keys.
 | `tag_category` | `create`, `rename`, `delete` |
 | `tag`          | `create`, `update` (name / category / color), `delete` |
 | `agent_binary` | `upload`, `update` (notes / isActive), `delete` |
+| `role`         | `create` (`details.privileges`, or `clonedFrom`), `update` (name / description / privileges), `delete` |
+| `permission`   | `create` (`details.role`, `scopeType`, `scopeId`, `propagate`), `update` (role / propagate), `delete`. `targetName` is `<role\|group>:<name>`; on a host / cluster it carries `hostId` / `clusterId` |
+
+### Roles and permissions
+
+| Method | Path | Query / body | Response |
+| ------ | ---- | ------------ | -------- |
+| GET    | `/rbac/catalog` | - | `RbacCatalog`. Any signed-in user |
+| GET    | `/roles` | - | `Role[]` (built-ins first). Any signed-in user |
+| POST   | `/roles` | `{ name, description?, privileges }` | `201 Role`. `rbac.manage` (global). `409 ROLE_EXISTS`, `400 UNKNOWN_PRIVILEGE` |
+| PATCH  | `/roles/:id` | any of `{ name, description, privileges }` | `Role`. `rbac.manage`. Built-ins → `409 ROLE_BUILTIN` |
+| POST   | `/roles/:id/clone` | `{ name }` | `201 Role` (a custom copy, built-ins included). `rbac.manage` |
+| DELETE | `/roles/:id` | - | `204`. `rbac.manage`. `409 ROLE_BUILTIN`; `409 ROLE_IN_USE` while a permission uses it (`details.permissionCount`) |
+| GET    | `/permissions` | `scopeType` (`global \| cluster \| host \| folder \| vm`), `scopeId` (omit for global) | `PermissionList`. `rbac.manage` on the object |
+| POST   | `/permissions` | `{ principalType, principalId, roleId, scopeType, scopeId, propagate? }` | `201 Permission`. `rbac.manage` on the object. `409 PERMISSION_EXISTS` (one per principal per object; `details.permissionId`); `403 ROLE_EXCEEDS_GRANTER` when the role holds privileges the caller lacks there (`details.privileges`) |
+| PATCH  | `/permissions/:id` | any of `{ roleId, propagate }` | `Permission`. Same checks |
+| DELETE | `/permissions/:id` | - | `204`. `rbac.manage` on its object |
+| GET    | `/principals` | `q?` | `Principal[]` `{ type, id }` (≤ 50): the caller's own roles / groups plus every principal already used in a permission. Needs `rbac.manage` somewhere |
+| GET    | `/me/privileges` | `ids` = comma-separated `global` / `<scopeType>:<id>` (≤ 200) | `{ items: { [key]: string[] \| null } }`: the caller's privileges per object; `null` = not visible (or gone) |
+| GET    | `/rbac/effective` | `principal` = `role:<name>` / `group:<name>`, `object` = `global` / `<scopeType>:<id>` | `EffectivePermissions`. `rbac.manage` on the object |
+
+Deleting a cluster, host, folder or VM deletes its permissions.
 
 ### Quick metrics
 
@@ -495,7 +560,11 @@ metering is on.
 | `UNAUTHENTICATED` | 401 | backend: missing or invalid bearer |
 | `UNAUTHORIZED` | 401 | frontend proxy: no valid session (never reaches the backend) |
 | `NETWORK` | 502 / 0 | frontend proxy: backend unreachable (502); client: request failed (status 0) |
-| `FORBIDDEN` | 403 | outside the caller's scope, an admin-only endpoint, or an invalid/expired install token |
+| `FORBIDDEN` | 403 | the object isn't visible, a privilege is missing (`message` names it), or an invalid/expired install token |
+| `ROLE_EXCEEDS_GRANTER` | 403 | granting a role with privileges the caller doesn't hold on that object |
+| `ROLE_BUILTIN`, `ROLE_IN_USE`, `ROLE_EXISTS`, `PERMISSION_EXISTS` | 409 | role / permission rules |
+| `UNKNOWN_PRIVILEGE` | 400 | a role lists a privilege outside the catalog |
+| `CONSOLE_UNAVAILABLE` | 409 | the console target has no address yet (or the VM isn't reported) |
 | `NOT_FOUND` | 404 | unknown entity or route |
 | `UNKNOWN_ACTION` | 404 | unknown VM or host action |
 | `INVALID` | 400 | a domain rule was violated (non-empty cluster, unreachable folder, hypervisor mismatch, a tag or category name outside `[A-Za-z0-9_-]{1,64}`, a tag colour outside the palette, …) |
@@ -559,9 +628,9 @@ reverts.
 | `/hosts/:id/metrics` · `/vms/:id/metrics` | 15 s · 10 s, only while the metrics tab is open  | the agent samples ~every 5 min |
 | `/vms/:id/thumbnail`                     | none - refetched when the VM's `lastSeen` changes | a new image only comes with an agent `vm_inventory` |
 | `/templates`                             | 15 s                                              | a new export shows up in the tree |
-| `/vm-locks`                              | 10 s, only while the dialog is open               | admin view |
-| `/audit-events` (Events History, Events tab) | 15 s, only while on screen; also refetched after every successful mutation and every terminal task | admin view; the poll catches system events and task outcomes |
-| `/agent-binaries`                        | 30 s, only while it is on screen                  | admin view |
+| `/vm-locks`                              | 10 s, only while the dialog is open               | `task.cancel` view |
+| `/audit-events` (Events History, Events tab) | 15 s, only while on screen; also refetched after every successful mutation and every terminal task | `audit.read` view; the poll catches system events and task outcomes |
+| `/agent-binaries`                        | 30 s, only while it is on screen                  | `host.manage` view |
 | `/vlans`, `/isos`, `/hosts/:id/isos`, `/hosts/:id/templates` | none (fetched on demand)      | rarely change |
 
 Optional: support `ETag` / `If-None-Match` on the list endpoints to make polling cheap.

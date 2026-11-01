@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Button, Dialog, TextField } from "~/components/win95";
 import type { Tag, Vm } from "~/api/types";
-import { useAuth } from "~/auth";
+import { useGlobalCan } from "../../rbac/privileges";
 import { organizeDialog } from "../../organize/dialogStore";
 import { useSetVmTags } from "../../organize/mutations";
 import { TagChip } from "../../organize/TagChip";
@@ -14,7 +14,7 @@ import { useTagCatalog } from "../../organize/tags";
  * replaced on Assign. A single `PUT /vms/:id/tags` applies the lot.
  */
 export function AssignTagsDialog({ vm, onClose }: { vm: Vm; onClose: () => void }) {
-  const { isAdmin } = useAuth();
+  const canManage = useGlobalCan("tag.manage");
   const catalog = useTagCatalog();
   const setTags = useSetVmTags();
   const [filter, setFilter] = React.useState("");
@@ -85,9 +85,9 @@ export function AssignTagsDialog({ vm, onClose }: { vm: Vm; onClose: () => void 
 
   const empty =
     catalog.tags.length === 0
-      ? isAdmin
+      ? canManage
         ? "No tags defined yet. Use Manage Tags… to create some."
-        : "No tags defined yet. An administrator defines the available tags."
+        : "No tags defined yet. Ask someone who manages tags to define them."
       : available.length === 0
         ? "Every tag is already assigned to this VM."
         : "No tags match the filter.";
@@ -99,7 +99,7 @@ export function AssignTagsDialog({ vm, onClose }: { vm: Vm; onClose: () => void 
       width={460}
       footer={
         <>
-          {isAdmin ? <Button onClick={manage}>Manage Tags…</Button> : null}
+          {canManage ? <Button onClick={manage}>Manage Tags…</Button> : null}
           <Button
             onClick={assign}
             disabled={picked.size === 0 || setTags.isPending}

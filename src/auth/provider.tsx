@@ -2,7 +2,7 @@ import * as React from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { logoutFn } from './server'
-import { hasAnyRole, isAdminRole } from './roles'
+import { hasAnyPrincipal, isAdminRole } from './roles'
 import { DevBypassWarning } from './DevBypassWarning'
 import type { AuthContextValue, AuthUser } from './types'
 
@@ -33,7 +33,7 @@ export function AuthProvider({
       user,
       isAuthenticated: !!user,
       isAdmin: isAdminRole(user?.roles),
-      hasAnyRole: hasAnyRole(user?.roles),
+      hasAnyRole: hasAnyPrincipal(user),
       authDisabled,
       async logout() {
         await callLogout()

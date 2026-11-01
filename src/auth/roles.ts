@@ -8,6 +8,14 @@ export const hasAnyRole = (roles: readonly string[] | undefined) =>
   (roles?.length ?? 0) > 0;
 
 /**
+ * Whether the user carries anything a permission can be granted to - a role or
+ * a group. Without either, nothing in Open vCenter can ever be granted to them.
+ */
+export const hasAnyPrincipal = (
+  user: { roles?: readonly string[]; groups?: readonly string[] } | null | undefined,
+) => hasAnyRole(user?.roles) || (user?.groups?.length ?? 0) > 0;
+
+/**
  * Where the roles array sits in the OIDC token. Provider-specific - configure
  * with OIDC_ROLES_CLAIM. `${client_id}` is substituted with the OIDC client id.
  *   Keycloak client roles : resource_access.${client_id}.roles   (default)
@@ -15,6 +23,9 @@ export const hasAnyRole = (roles: readonly string[] | undefined) =>
  *   Auth0 / Okta / generic : roles   (or a namespaced "https://ovc.example/roles")
  */
 export const DEFAULT_ROLES_CLAIM = "resource_access.${client_id}.roles";
+
+/** Where the groups array sits in the token (OIDC_GROUPS_CLAIM, same syntax). */
+export const DEFAULT_GROUPS_CLAIM = "groups";
 
 /** Walk a dot-path (`a.b.c`) into a decoded-token object. */
 export function claimByPath(obj: unknown, path: string): unknown {

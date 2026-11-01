@@ -5,6 +5,7 @@ import { TRANSITIONAL_VM_STATES } from "~/api/types";
 import { actionsForState } from "../actions/powerActions";
 import { useVmPowerAction } from "../actions/useVmPowerAction";
 import { confirm, confirmWithCheckbox } from "../confirm";
+import { objKey, usePrivileges, useVmActionPrivileges } from "../rbac/privileges";
 
 export function VmPowerButtons({
   vm,
@@ -12,6 +13,8 @@ export function VmPowerButtons({
   vm: Pick<Vm, "id" | "name" | "state" | "lock">;
 }) {
   const mutation = useVmPowerAction(vm);
+  const privs = usePrivileges(objKey("vm", vm.id));
+  const actionPriv = useVmActionPrivileges();
   const actions = actionsForState(vm.state);
   const busy =
     mutation.isPending || TRANSITIONAL_VM_STATES.has(vm.state) || !!vm.lock;
@@ -29,7 +32,7 @@ export function VmPowerButtons({
             <ToolbarSeparator />
           ) : null}
           <Button
-            disabled={busy}
+            disabled={busy || !privs.can(actionPriv[action.id])}
             className="min-w-0 px-2"
             onClick={async () => {
               if (action.id === "delete") {

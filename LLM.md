@@ -64,7 +64,7 @@ Companion docs: `CLAUDE.md` (short working summary of this file),
 | `/`                      | redirect → `/inventory`                                                                                  |
 | `/login`                 | "Sign in" card, with a Theme dropdown                                                                    |
 | `/logout`                | clears the session                                                                                      |
-| `/access-denied`         | signed in, but the token carries zero roles                                                              |
+| `/access-denied`         | signed in, but the token carries no role and no group                                                    |
 | `/inventory` (`_authed`) | the Explorer. Search params `?sel=<kind>:<id>&tab=<tabId>`                                               |
 | `/console` (`_authed`)   | standalone console in its own browser tab: `?vm=<vmId>` (Hyper-V console) or `?host=<hostId>` (host RDP) |
 | `/frontend-api/api/*`    | server proxy → ovc-backend. Injects the OIDC bearer                                                 |
@@ -78,11 +78,15 @@ Companion docs: `CLAUDE.md` (short working summary of this file),
 "Open vCenter". Closing it signs you out. From top to bottom it contains:
 
 1. **Menu bar** (`InventoryMenuBar.tsx`):
-   - **File**: Cluster Management, Hosts Management, Agent Management (admin),
-     Tag Management (admin), Refresh (labelled F5; invalidates every query), Sign Out.
-   - **Action**: Move VM to Folder (needs a VM selected with ≥ 1 reachable folder),
-     Move Host (needs a host selected), Delete Folder (needs a folder selected).
-   - **View**: Refresh, Events History (admin), VM Locks (admin).
+   - **File**: Cluster Management, Hosts Management, Agent Management (`host.manage`),
+     Tag Management (`tag.manage`), Refresh (labelled F5; invalidates every query), Sign Out.
+   - **Action**: Move VM to Folder (needs a VM selected with ≥ 1 reachable folder,
+     `vm.config`), Move Host (a host selected, `host.manage`), Delete Folder (a
+     folder selected, `folder.manage`).
+   - **View**: Refresh, Events History (`audit.read`), VM Locks (`task.cancel`).
+   - **Administration**: Roles, Global Permissions (both `rbac.manage`).
+   - A privilege in brackets is held globally unless an object is named; without it
+     the item is greyed out (see Business rules › Access control).
    - **Preferences**: Theme ▸ (8 themes), Tree Behavior ▸ (Collapsed / Expanded).
    - **Help**: About Open vCenter (shows the `package.json` version, inlined as
      `__APP_VERSION__` by `vite.config.ts`), plus Auth Debug in dev builds only.
@@ -103,7 +107,11 @@ Mounted once inside the Explorer: `<TaskWatcher/>`, `<OrganizeDialogs/>`,
 
 ### Inventory tree (`tree/treeModel.ts`, `tree/InventoryTree.tsx`)
 
-Built from `/clusters`, `/hosts`, `/folders`, `/vms` and `/templates`:
+Built from `/clusters`, `/hosts`, `/folders`, `/vms` and `/templates`. The backend
+lists only what the caller is granted, not the objects around it, so a folder or
+VM whose cluster / host isn't listed goes at the **root**, after the standalone
+hosts: those folders (with their VMs) first, then lone VMs, each sorted by name. A
+folder lists its VMs from any host, listed or not.
 
 ```
 <cluster>                    Layers icon
@@ -148,13 +156,13 @@ Built from `/clusters`, `/hosts`, `/folders`, `/vms` and `/templates`:
 | Selection                                                  | Header (icon · title · subtitle · actions)                                                     | Tabs / body                                                                                                                                                                                                                       |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | none                                                       | -                                                                                              | `EmptyDetail`: "Select a cluster, host, or virtual machine."                                                                                                                                                                      |
-| cluster                                                    | Layers · name · "N host(s) · M VM(s)"                                                          | **Hosts** (click or Enter on a row selects the host; Status shows `HostStatusLabel`) · **VM Startup Ordering** · **Virtual Networks** (cluster VLANs) · **Events** (admin)                                                                                                  |
-| host whose agent was never seen (`agent.lastSeen == null`) | host icon · name · fqdn · Console                                                              | **Setup Agent** only (+ **Events** for an admin)                                                                                                                                                                                  |
-| host whose agent checked in at least once                  | host icon · name · fqdn · [Update Agent → vX] [Actions ▾] [Console]                            | **Summary** (Host Information + hardware) · **Virtual Machines** (ag-grid) · **Host Metrics** · **Configuration** (VM Startup Ordering, Network Adapters, Virtual Switches, Virtual Networks, Fibre Channel Adapters) · **Events** (admin) |
-| folder                                                     | Folder · name · "Cluster: X" or "Host: Y" · Delete Folder                                      | VM count + `VmGrid` of `GET /vms?folderId=` (search, filters, batch power; a Host column on cluster folders)                                                                                                                      |
+| cluster                                                    | Layers · name · "N host(s) · M VM(s)"                                                          | **Hosts** (click or Enter on a row selects the host; Status shows `HostStatusLabel`) · **VM Startup Ordering** · **Virtual Networks** (cluster VLANs) · **Events** · **Permissions**                                                                                                  |
+| host whose agent was never seen (`agent.lastSeen == null`) | host icon · name · fqdn · Console                                                              | **Setup Agent** only (+ **Events** / **Permissions**)                                                                                                                                                                             |
+| host whose agent checked in at least once                  | host icon · name · fqdn · [Update Agent → vX] [Actions ▾] [Console]                            | **Summary** (Host Information + hardware) · **Virtual Machines** (ag-grid) · **Host Metrics** · **Configuration** (VM Startup Ordering, Network Adapters, Virtual Switches, Virtual Networks, Fibre Channel Adapters) · **Events** · **Permissions** |
+| folder                                                     | Folder · name · "Cluster: X" or "Host: Y" · Delete Folder (`folder.manage`)                    | **Virtual Machines** (VM count + `VmGrid` of `GET /vms?folderId=`: search, filters, batch power; a Host column on cluster folders) · **Permissions**                                                                              |
 | templatefolder                                             | Folder · "Templates" · scope                                                                   | template table (click or Enter on a row selects the template; an empty-state row when there are none)                                                                                                                           |
 | template                                                   | Package · name · "cluster › host" · Deploy new VM…                                             | property list + notes                                                                                                                                                                                                             |
-| vm                                                         | state icon · name · "state · firmware" (state in `text-fg`) · power buttons (Delete set apart by a separator), Refresh, More ▾, lock badge | **Summary** · **VM Metrics** (only when `metricsEnabled`) · **Snapshots** · **Console** (greyed out while Off / Paused) · **Events** (admin)                                                                          |
+| vm                                                         | state icon · name · "state · firmware" (state in `text-fg`) · power buttons (Delete set apart by a separator), Refresh, More ▾, lock badge | **Summary** · **VM Metrics** (only when `metricsEnabled`) · **Snapshots** · **Console** (greyed out while Off / Paused, or without `vm.console`) · **Events** · **Permissions**                                       |
 
 **VM Startup Ordering** (cluster tab and host ▸ Configuration,
 `panels/VmStartupOrderingPanel.tsx`) lists VMs in boot order. The `#` column is a
@@ -200,6 +208,9 @@ adapters and Disks.
   tooltip says why. This box is the only console entry point outside the Console
   tab - the header has no Console menu. The agent only captures Running VMs, so a
   Paused or Saved VM keeps showing its last image.
+
+**Events** needs `audit.read` and **Permissions** `rbac.manage` on the object
+(`rbac/objectTabs.ts` `privilegedTabs`); otherwise the tab isn't offered.
 
 The active tab lives in `?tab=`. An unknown tab falls back to the first one.
 Selecting a node of the same kind keeps the current tab; selecting a node of a
@@ -249,17 +260,18 @@ for clusters, hosts and VMs to give SSR a first paint, and swallows any error.
   - The collapsed state is stored in `localStorage` under `ovc-tasks-dock-collapsed`.
 - There is **no** Task History dialog and **no** per-VM / per-host Tasks tab: the
   Events screens (below) are the history, and an event that queued a task opens
-  its `TaskDetailsDialog` (View Task). Events are admin-only, so a non-admin's
-  only task view is this dock (the last hour).
+  its `TaskDetailsDialog` (View Task). Events need `audit.read`, so without it
+  the only task view is this dock (the last hour).
 - **Progress bar**: uses `task.progress` when the agent reports it; otherwise
   queued = 0, running = 50, terminal = 100 (`taskProgress`). It is indeterminate
   while the task is queued.
 
-### Events UI (audit log, admin only - `features/inventory/events/`)
+### Events UI (audit log, `audit.read` - `features/inventory/events/`)
 
 Who changed what, and when, from `GET /audit-events` (backend `audit_events`). It
-covers DB-only changes too (folders, moves, tags, clusters…), not just agent tasks,
-and outlives deleted objects. Hidden from non-admins - the backend would `403`.
+covers DB-only changes too (folders, moves, tags, clusters, roles, permissions…),
+not just agent tasks, and outlives deleted objects. Events History needs
+`audit.read` globally; an object's Events tab needs it on that object.
 
 - **Events History** (View menu, `EventsHistoryDialog`): search box (debounced
   300 ms → `q`: object name or actor), an object-type dropdown (`targetType`) and an
@@ -342,8 +354,8 @@ To add a call:
 | hosts        | `GET /hosts`                                                            | `?clusterId`                                                                                                         | `Host[]`                                               |
 |              | `GET /hosts/:id`                                                        | -                                                                                                                    | `HostDetail` (+ `hardware`)                            |
 |              | `GET /hosts/:id/vms` · `/metrics` · `/templates` · `/isos`              | -                                                                                                                    | `Vm[]` · `HostMetricSample[]` · `Template[]` · `Iso[]` |
-|              | `GET /hosts/:id/agent-config` (admin)                                   | -                                                                                                                    | `HostAgentConfig`                                      |
-|              | `GET /hosts/:id/agent-install-url` (admin)                              | -                                                                                                                    | `HostAgentInstall`                                     |
+|              | `GET /hosts/:id/agent-config` (`host.manage`)                           | -                                                                                                                    | `HostAgentConfig`                                      |
+|              | `GET /hosts/:id/agent-install-url` (`host.manage`)                      | -                                                                                                                    | `HostAgentInstall`                                     |
 |              | `POST /hosts`                                                           | `{ name, clusterId }`                                                                                                | `HostDetail`                                           |
 |              | `PATCH /hosts/:id`                                                      | any of `{ name, fqdn, clusterId }` (`clusterId: null` = standalone)                                                  | `HostDetail`                                           |
 |              | `DELETE /hosts/:id`                                                     | - (cascades)                                                                                                         | `204`                                                  |
@@ -366,19 +378,25 @@ To add a call:
 |              | `DELETE /vms/:id/from-inventory`                                        | - (DB only)                                                                                                          | `{ removed }`                                          |
 |              | `PUT /vms/:id/tags`                                                     | `{ tagIds: string[] }` (the complete set; ≤ 1 per category)                                                          | `Vm`                                                   |
 | tags         | `GET /tag-categories` · `GET /tags`                                     | -                                                                                                                    | `TagCategory[]` · `Tag[]` (with `vmCount`)             |
-|              | `POST /tag-categories` · `PATCH /tag-categories/:id` (admin)            | `{ name }`                                                                                                           | `TagCategory`                                          |
-|              | `DELETE /tag-categories/:id` (admin)                                    | - (also deletes its tags)                                                                                            | `204`                                                  |
-|              | `POST /tags` · `PATCH /tags/:id` (admin)                                | `{ name, categoryId, color }` · any of `{ name, categoryId, color }` (`null` = standalone)                           | `Tag`                                                  |
-|              | `DELETE /tags/:id` (admin)                                              | -                                                                                                                    | `204`                                                  |
-| vm locks     | `GET /vm-locks` · `DELETE /vm-locks/:vmId` · `DELETE /vm-locks` (admin) | -                                                                                                                    | `VmLockEntry[]` · `{ released }`                       |
+|              | `POST /tag-categories` · `PATCH /tag-categories/:id` (`tag.manage`)     | `{ name }`                                                                                                           | `TagCategory`                                          |
+|              | `DELETE /tag-categories/:id` (`tag.manage`)                             | - (also deletes its tags)                                                                                            | `204`                                                  |
+|              | `POST /tags` · `PATCH /tags/:id` (`tag.manage`)                         | `{ name, categoryId, color }` · any of `{ name, categoryId, color }` (`null` = standalone)                           | `Tag`                                                  |
+|              | `DELETE /tags/:id` (`tag.manage`)                                       | -                                                                                                                    | `204`                                                  |
+| vm locks     | `GET /vm-locks` · `DELETE /vm-locks/:vmId` · `DELETE /vm-locks` (`task.cancel`) | -                                                                                                                    | `VmLockEntry[]` · `{ released }`                       |
 | tasks        | `GET /tasks`                                                            | no params (the dock; the backend also takes `?vmId&hostId&status&limit`)                                             | `Task[]` (newest first)                                |
 |              | `GET /tasks/:id`                                                        | -                                                                                                                    | `TaskDetail`                                           |
-| audit        | `GET /audit-events` (admin)                                             | `?q&targetType&targetId&hostId&clusterId&outcome&limit&cursor` (the frontend sends `limit=50`)                      | `AuditEventPage` `{ items, nextCursor }` (newest first; **not** a bare array) |
+| audit        | `GET /audit-events` (`audit.read`)                                      | `?q&targetType&targetId&hostId&clusterId&outcome&limit&cursor` (the frontend sends `limit=50`)                      | `AuditEventPage` `{ items, nextCursor }` (newest first; **not** a bare array) |
 | images       | `GET /templates` · `GET /isos`                                          | -                                                                                                                    | flat cross-host lists                                  |
-| agent builds | `GET /agent-binaries` · `GET /agent-binaries/storage` (admin)           | -                                                                                                                    | `AgentBinary[]` · `AgentStorageInfo`                   |
-|              | `POST /agent-binaries` (admin)                                          | multipart: `file`, `version`, `hypervisor?`, `notes?`, `makeActive?`                                                 | `AgentBinary`                                          |
+| agent builds | `GET /agent-binaries` · `GET /agent-binaries/storage` (`host.manage`)   | -                                                                                                                    | `AgentBinary[]` · `AgentStorageInfo`                   |
+|              | `POST /agent-binaries` (`host.manage`)                                  | multipart: `file`, `version`, `hypervisor?`, `notes?`, `makeActive?`                                                 | `AgentBinary`                                          |
 |              | `PATCH /agent-binaries/:id` · `DELETE /agent-binaries/:id`              | any of `{ notes, isActive }` · -                                                                                     | `AgentBinary` · `204`                                  |
 |              | `POST /agent-binaries/:id/rollout`                                      | `{ hostIds: string[] \| null }` (null = every outdated online host)                                                  | `{ tasks, skipped[] }`                                 |
+| access       | `GET /me` · `GET /rbac/catalog`                                         | -                                                                                                                    | `Me` · `RbacCatalog` (privileges + `vmActions`: VM action → privilege) |
+|              | `GET /me/privileges`                                                    | `?ids=global,vm:<id>,host:<id>,…` (≤ 200, batched by `rbac/privileges.ts`)                                          | `{ items: { [key]: Privilege[] \| null } }` (null = not visible) |
+|              | `GET /roles` · `POST /roles` · `PATCH /roles/:id` · `POST /roles/:id/clone` · `DELETE /roles/:id` | `{ name, description?, privileges }` · any of those · `{ name }` · -                                     | `Role[]` · `Role` · `204`                              |
+|              | `GET /permissions` · `POST /permissions` · `PATCH /permissions/:id` · `DELETE /permissions/:id` | `?scopeType&scopeId` · `{ principalType, principalId, roleId, scopeType, scopeId, propagate }` · `{ roleId?, propagate? }` · - | `PermissionList` `{ direct, inherited }` · `Permission` · `204` |
+|              | `GET /principals` · `GET /rbac/effective`                               | `?q` · `?principal=group:<name>&object=vm:<id>`                                                                      | `Principal[]` · `EffectivePermissions`                 |
+| consoles     | `GET /vms/:id/console` (`vm.console`) · `GET /hosts/:id/console` (`host.console`) | - (called by the Console panels, and by the tunnel server-side)                                            | `ConsoleTarget` `{ hostname, port, vmGuid }`           |
 
 #### VM action wire params (`POST /vms/:id/actions/<action>` → agent `AgentRequest.params`)
 
@@ -433,6 +451,9 @@ task whose agent never answers still ends as `timeout` through the backend sweep
 | audit events (infinite, cursor pages)  | `['audit-events', params]`                                                       | 15 s; invalidated by every mutation and terminal task |
 | templates / isos (flat)                | `['templates']` / `['isos']`                                                     | 15 s / none                            |
 | agent binaries / storage               | `['agent-binaries']` / `['agent-binaries', 'storage']`                           | 30 s / none                            |
+| me / my privileges per object          | `['me']` / `['me', 'privileges', objKey]`                                        | staleTime 60 s; `['me']` invalidated by every mutation (router `MutationCache`) |
+| catalog / roles / permissions / principals / effective | `['rbac', 'catalog' \| 'roles' \| 'permissions' \| 'principals' \| 'effective', …]` | none (catalog: staleTime ∞); RBAC mutations invalidate `['rbac']`, `['me']` and the inventory |
+| VM / host console target               | `['vms', id, 'console']` / `['hosts', id, 'console']`                            | staleTime 60 s, no retry               |
 
 Always invalidate by prefix: `['vms']`, `['hosts']`, `['tasks']` and so on.
 
@@ -475,6 +496,7 @@ Always invalidate by prefix: `['vms']`, `['hosts']`, `['tasks']` and so on.
 | `API_URL`                                                                                  | server           | ovc-backend base URL (e.g. `http://localhost:8000/api`)                                     |
 | `VITE_API_URL`                                                                             | client           | API base as seen by the browser. Default `/frontend-api/api`; absolute in split-origin dev  |
 | `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_SCOPES?`, `OIDC_ROLES_CLAIM?` | server           | OIDC provider (discovery). The roles claim defaults to `resource_access.${client_id}.roles` |
+| `OIDC_GROUPS_CLAIM?`                                                                       | server           | dot-path to the groups array (same syntax). Default `groups`. Mirrors ovc-backend's `OVC_OIDC_GROUPS_CLAIM` |
 | `OIDC_INTERNAL_URL?`                                                                       | server           | The issuer as the server reaches it, when it differs from the browser-facing `OIDC_ISSUER` (containers). Discovery only; see Auth (OIDC) |
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`                                                    | server           | better-auth                                                                                 |
 | `VITE_OIDC_PROVIDER_NAME?`                                                                 | client           | login button label                                                                          |
@@ -600,24 +622,58 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
 
 ### Access control
 
-- Roles come from the OIDC token at `OIDC_ROLES_CLAIM`:
+- **Entry**: roles come from the token at `OIDC_ROLES_CLAIM`, groups at
+  `OIDC_GROUPS_CLAIM`:
   - no session → `/login`;
-  - a session with zero roles → `/access-denied`;
-  - `ADMINISTRATOR` = full access; any other role gets in and is scoped by the backend.
-- RBAC (Cluster > Host > Folder scope grants) is enforced **server-side**. Lists come
-  back pre-filtered and forbidden reads return `403 FORBIDDEN`. The frontend never
-  sends an identity or a scope.
-- **Admin-only UI** (`useAuth().isAdmin`):
-  - File ▸ Agent Management;
-  - File ▸ Tag Management (creating, renaming and deleting tags and categories;
-    assigning tags to a VM is open to anyone who can see the VM);
-  - View ▸ VM Locks;
-  - View ▸ Events History and the **Events** tab on clusters, hosts and VMs;
-  - "Force unlock (admin)";
-  - the host "Update Agent → vX" button;
-  - Pause / Resume Node and Restart Host;
-  - the data behind the Setup Agent tab (admin-only endpoints).
-- Everything else is visible to any role, and the backend has the final say.
+  - a session with no role **and** no group → `/access-denied` (nothing could be
+    granted to it);
+  - anyone else gets in; what they see is the backend's call.
+- **Model** (enforced by ovc-backend, see its LLM.md › Access control):
+  privileges (`vm.power`, `host.manage`, …, catalog `GET /rbac/catalog`) → roles
+  (built-in Administrator / Read-only / No access, plus editable custom roles) →
+  permissions: a role granted to an identity-provider **role or group** (never a
+  user) on global / a cluster / a host / a folder / a VM, optionally propagating
+  down. A VM's own permissions override the rest; otherwise it gets the union of
+  its folder and its host. Lists come back filtered to what is granted (nothing
+  above it), forbidden calls return `403 FORBIDDEN`. The frontend never sends an
+  identity or a scope.
+- `ADMINISTRATOR` (`OVC_ADMIN_ROLE`) is a superuser: every privilege everywhere,
+  no permission needed. `useAuth().isAdmin` is that role - used only to
+  short-circuit the privilege hook, never to gate UI.
+- **Greying out** (`features/inventory/rbac/privileges.ts`): `usePrivileges(objKey)`,
+  `useCan(priv, objKey)`, `useGlobalCan(priv)`, `useKeysWith(priv, keys)`; VM
+  actions look their privilege up in the catalog's `vmActions`
+  (`useVmActionPrivileges`). Each object is its own query
+  (`['me','privileges',objKey]`), but the keys of one tick go out as one
+  `GET /me/privileges`. Missing privilege ⇒ the item is disabled (greyed, no
+  reason label); while loading it is disabled too. What it gates:
+  - menus: see The Explorer window;
+  - VM: power buttons and every More item (by `vmActions`), Clone / Export
+    (`vm.create` on the host too), Force unlock (`task.cancel`), Remove from
+    Inventory (`vm.delete`), Console tab and Summary console buttons
+    (`vm.console`), Assign Tag / remove chip (`vm.config`);
+  - host: Pause / Resume Node and Restart (`host.maintenance`), Console button
+    (`host.console`), Update Agent (`host.manage` globally - hidden without it);
+  - tree toolbar: New VM (`vm.create` on ≥ 1 online host), New Cluster
+    (`cluster.manage`), New Host (`host.manage`), New Folder (`folder.manage` on
+    the scope); the VM wizard only offers hosts with `vm.create`;
+  - Tag Management button in Assign Tags (`tag.manage`);
+  - Events / Permissions tabs (see Detail pane).
+- **Administration ▸ Roles** (`rbac/RolesDialog.tsx`): roles table (lock icon =
+  built-in, "In use" = permission count) + Name / Description + one GroupBox of
+  privilege checkboxes per privilege group. New, Clone ("<name> copy"), Delete
+  (refused while in use: `ROLE_IN_USE`), Save / Create. Built-ins are read-only.
+- **Permissions tab** (`rbac/PermissionsPanel.tsx`; also Administration ▸ Global
+  Permissions): direct rows (Edit / Remove) then inherited ones, whose "Defined in"
+  link selects that object on its Permissions tab. **Add Permission**
+  (`PermissionEditDialog`): Group / Role, the name as the provider sends it (with
+  suggestions from `GET /principals`), a role, Propagate. A delegate can't grant a
+  role with privileges they don't hold there (`ROLE_EXCEEDS_GRANTER`).
+  **Effective Permissions** (`EffectivePermissionsDialog`): for a role / group
+  name, each inheritance path level by level (the deciding level highlighted,
+  blocked levels flagged) and the resulting privileges.
+- RBAC changes invalidate `['rbac']`, `['me']` and the inventory lists; every
+  other mutation invalidates `['me']` too (a move can change privileges).
 
 ### Clusters and hosts
 
@@ -681,7 +737,7 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
 
 ### Tags
 
-- **Catalog** (`organize/TagManagementDialog.tsx`, File ▸ Tag Management, admin):
+- **Catalog** (`organize/TagManagementDialog.tsx`, File ▸ Tag Management, `tag.manage`):
   global, not scoped to a cluster or host. A tag is standalone or belongs to one
   **category**; a VM carries **at most one tag per category** (e.g. OS: Windows /
   Linux / Others / Appliances; Datacenter: Datacenter-1…3).
@@ -720,7 +776,8 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
   already has one) and then "Standalone tags", each row a checkbox · chip · VM count.
   Ticking a tag unticks any other tag of its category. **Assign (N)** sends one PUT
   that adds the ticked tags and drops the VM's current tag of each touched category.
-  Admins also get **Manage Tags…**, which closes it and opens Tag Management.
+  With `tag.manage` there is also **Manage Tags…**, which closes it and opens Tag
+  Management. Assigning needs `vm.config` on the VM.
 - Tags stay on the VM through inventory refreshes and in-cluster migrations; clones
   and new VMs start untagged.
 
@@ -761,8 +818,8 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
   - the power buttons and every "More" item are disabled;
   - Snapshot actions are disabled, with a notice that names the reason;
   - Edit VM shows a notice and cannot save.
-- **Admin tools**:
-  - "Force unlock (admin)" in the More menu (danger confirmation);
+- **Unlocking** (`task.cancel`):
+  - "Force unlock" in the More menu (danger confirmation);
   - View ▸ VM Locks lists every lock with its TTL and task status, a per-row force
     unlock, and "Release all". A failed release shows inline in the dialog (the
     status bar sits behind the modal) and is mirrored to the status bar.
@@ -805,7 +862,9 @@ transition rule lives in `actions/useVmActionBlock.ts`.
 | Export as Template      | VM **Off**. Name `[A-Za-z0-9_-]+`, optional notes                                                                                                         | `vm_export_template`                       |
 | Enable / Disable Metrics | toggles on `metricsEnabled`                                                                                                                               | `vm_enable_metrics` / `vm_disable_metrics` |
 | Remove from Inventory   | host offline only (danger item)                                                                                                                           | DB-only delete                             |
-| Force unlock (admin)     | VM locked **and** the user is an admin (danger item)                                                                                                      | `DELETE /vm-locks/:vmId`                   |
+| Force unlock             | VM locked **and** the caller holds `task.cancel` on it (danger item)                                                                                      | `DELETE /vm-locks/:vmId`                   |
+
+Every item is also greyed out without its privilege (Access control).
 
 - **Header Refresh**: runs the `refresh` action (the agent re-inventories this VM,
   with no lock). When the host is offline it only invalidates the cache.
@@ -989,12 +1048,12 @@ The Actions menu appears only after the agent has responded at least once.
 
 - **Refresh Hardware** / **Refresh VMs**: open to any user; disabled while the agent
   is disconnected.
-- **Admin, clustered hosts only**:
+- **`host.maintenance`, clustered hosts only** (greyed out without it):
   - **Pause Node**: only when the node state is `Up`. The "Drain roles" checkbox
     picks `suspend_drain`, otherwise `suspend`.
   - **Resume Node**: shown when the node state is `Paused`. The "Failback" checkbox
     picks `resume_fallback`, otherwise `resume`.
-- **Admin: Restart Host** (danger confirmation) is disabled while any VM is Running
+- **Restart Host** (`host.maintenance`, danger confirmation) is disabled while any VM is Running
   (the label shows the count), and on a cluster node unless the node is Paused. The
   agent re-checks both conditions.
 - Every host action returns a task that goes to `activeTasks`.
@@ -1003,9 +1062,9 @@ The Actions menu appears only after the agent has responded at least once.
   - `HOST_ACTION_IN_PROGRESS`: a disruptive action (suspend / resume / restart) is
     already running;
   - `HOST_OFFLINE`;
-  - `403`: a non-admin sent a disruptive action.
+  - `403`: a disruptive action without `host.maintenance`.
 
-### Agent onboarding and management (admin)
+### Agent onboarding and management (`host.manage`)
 
 - **New host**: until the agent checks in, the host shows only the **Setup Agent** tab.
   - A tokenized elevated-PowerShell one-liner comes from
@@ -1035,14 +1094,19 @@ ACTIVE_BINARY`.
   - **Hosts section**: shows each host's version against the active build, with
     either "up to date" or an Update button. Update is disabled when there is no
     active build, the host is already current, or it is disconnected.
-- **Host header "Update Agent → <version>"**: shown to admins when the agent is
+- **Host header "Update Agent → <version>"**: shown with `host.manage` (global) when the agent is
   connected, an active build exists for the host's hypervisor, and its version
   differs. It asks for confirmation; the agent then restarts itself in drain mode.
 
 ### Console access
 
+- **Privileges**: `vm.console` on the VM / `host.console` on the host (granted in
+  OVC whatever the hypervisor). They only decide whether OVC offers and connects
+  the console; the host still checks the credentials typed in (on Hyper-V its
+  local Administrators / Hyper-V Administrators groups).
 - **Hyper-V VM console**: requires the host to be online, a host FQDN or IP, and the
-  VM `vmUuid`.
+  VM `vmUuid`. The panel reads the address from `GET /vms/:id/console`
+  (`vmConsoleQuery`), which is also the privilege check.
   - An **Off or Paused** VM has no screen to show (`panels/webrdp.ts`
     `vmConsoleStateBlock`): the VM **Console tab** is greyed out (`TabItem.disabled`,
     tooltip says why) and a selected `?tab=console` falls back to Summary, and the
@@ -1055,7 +1119,7 @@ ACTIVE_BINARY`.
     `<ClientOnly>` mounts `GuacamoleConsole`, which lazy-imports
     `guacamole-common-js`.
   - It connects through `HTTPTunnel(${VITE_WEBRDP_URL}/tunnel)` with
-    `hostname=<fqdn|ip>&port=2179&vm-guid=<vmUuid>&security=vmconnect`.
+    `vm-id=<vm.id>&security=vmconnect` - an id, never an address.
   - The toolbar holds the VM power and DVD controls, then Disconnect, Reconnect,
     Clipboard, Ctrl+Alt+Del and Fullscreen, with a status bar and connecting/error
     overlays.
@@ -1066,19 +1130,26 @@ ACTIVE_BINARY`.
     loaded, state 1, state 2). Nothing is timed. The current line has a block
     cursor that pulses only under `motion-safe`.
 - **Host RDP console**: the host header's Console button (host online, with an
-  address) opens `/console?host=`, which connects on port 3389 with `security=any`.
+  address, `host.console`) opens `/console?host=`, which reads
+  `GET /hosts/:id/console` and connects with `host-id=<id>&security=any` (port 3389).
 - **Tunnel** (`src/routes/webrdp/tunnel.ts` + `src/guacd/`): the browser calls
   `/webrdp/tunnel` on the same origin. The route implements Guacamole's HTTP
   tunnel contract (`?connect`, `?read:<uuid>:<n>`, `?write:<uuid>`, same as the
   Java `GuacamoleHTTPTunnelServlet`) and speaks the Guacamole protocol to guacd
   at `GUACD_URL` itself:
   - `connect` (POST, urlencoded body) needs a session (`getAccessToken()`, or
-    `OVC_AUTH_MODE=stub`), accepts only ports 2179 and 3389, runs the guacd
+    `OVC_AUTH_MODE=stub`). It takes `vm-id` or `host-id` and asks ovc-backend
+    (`src/api/backend.server.ts`, with the user's bearer) for
+    `GET /vms/:id/console` / `GET /hosts/:id/console`: the backend checks
+    `vm.console` / `host.console` and answers hostname, port and VM GUID
+    (403 → `CLIENT_FORBIDDEN`, 404 / 409 → `UPSTREAM_NOT_FOUND`). It accepts
+    only ports 2179 and 3389, runs the guacd
     handshake (protocol version capped at `VERSION_1_5_0`) and returns the tunnel
     UUID plus a `Guacamole-Tunnel-Token` header. read/write are authorised by
     that token, not the session (the client writes a `nop` every 500 ms).
-  - Only `hostname`, `port`, `username`, `password`, `domain`, `security`,
-    `vm-guid`, `width`, `height` are taken from the browser. Port 2179 forces
+  - Only `vm-id` / `host-id`, `username`, `password`, `domain`, `security`,
+    `width`, `height` are taken from the browser; the address, port and VM GUID
+    always come from the backend. Port 2179 forces
     `security=vmconnect` + `preconnection-blob=<vm-guid>`; otherwise `security`
     defaults to `nla`. **Audio, drive redirection / upload / download and
     printing are always off** (and the handshake offers no audio mimetypes).
@@ -1252,8 +1323,11 @@ src/
                               useVmManagementAction, useVmActionBlock, TaskWatcher,
                               activeTasks, statusMessage
     tasks/                    TasksDock, TaskHistoryDialog, TaskDetailsDialog, taskLabels
-    events/                   EventsHistoryDialog, EventsTable, EventDetailsDialog, eventLabels (admin)
-    locks/                    VmLocksDialog (admin)
+    events/                   EventsHistoryDialog, EventsTable, EventDetailsDialog, eventLabels (`audit.read`)
+    locks/                    VmLocksDialog (`task.cancel`)
+    rbac/                     privileges.ts (useCan & co, batched /me/privileges), objectTabs,
+                              RolesDialog, PermissionsPanel, PermissionEditDialog,
+                              EffectivePermissionsDialog, GlobalPermissionsDialog, mutations
   routes/
     __root.tsx                providers (QueryClientProvider, AuthProvider, Preferences),
                               <head>, devtools. beforeLoad loads user + preferences.
@@ -1299,18 +1373,20 @@ Keycloak realm as the default.
 2. The callback lands at `/frontend-api/auth/callback/oidc`. `getUserInfo` decodes
    the token (the access token, else the id token) and reads the roles array at the
    dot-path `OIDC_ROLES_CLAIM` (default `resource_access.${client_id}.roles`, with
-   `${client_id}` substituted). The roles are persisted on the session user as
-   `roles`.
-3. `__root` `beforeLoad` → `fetchCurrentUser()` → `context.user = { …, roles }`.
+   `${client_id}` substituted), and the groups array at `OIDC_GROUPS_CLAIM`
+   (default `groups`). Both are persisted on the session user (`roles`, `groups`).
+3. `__root` `beforeLoad` → `fetchCurrentUser()` → `context.user = { …, roles, groups }`.
 4. The `_authed` guard runs `requireAnyRole`: no session → `/login`; a session with
-   zero roles → `/access-denied`; `ADMINISTRATOR` or any role → in. `requireAdmin`
-   guards admin-only routes.
+   no role and no group → `/access-denied`; anyone else → in. `requireAdmin`
+   (the `ADMINISTRATOR` role) exists for routes but none uses it.
 5. API calls go to `/frontend-api/api/*` (browser, with the cookie). The server proxy
    attaches `Authorization: Bearer <access token>`, and ovc-backend re-verifies the
    JWT and derives the roles the same way. The token never reaches the browser.
 
-`useAuth()` exposes `user`, `isAdmin`, `hasAnyRole` and `logout`. `ADMINISTRATOR`
-matches ovc-backend's `OVC_ADMIN_ROLE` / `OVC_OIDC_ROLES_CLAIM`.
+`useAuth()` exposes `user`, `isAdmin`, `hasAnyRole` (a role or a group) and
+`logout`. `ADMINISTRATOR` matches ovc-backend's `OVC_ADMIN_ROLE`; the claims match
+`OVC_OIDC_ROLES_CLAIM` / `OVC_OIDC_GROUPS_CLAIM`. UI gating is by privilege, not
+by `isAdmin` (Business rules › Access control).
 
 **No-auth bypass**: `OVC_AUTH_MODE=stub` (server-only, `src/auth/bypass.ts`).
 
@@ -1411,7 +1487,6 @@ Record any new violation of the rules above here until it is fixed.
 
 - ISO and template management screens (upload, delete). Today these lists are
   read-only agent inventory.
-- RBAC administration UI.
 - Nested folders.
 - Real-time push (SSE / WebSocket); everything is polling.
 - i18n, a mobile layout, and automated tests.

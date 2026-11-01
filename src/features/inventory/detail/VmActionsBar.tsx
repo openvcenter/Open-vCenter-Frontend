@@ -22,7 +22,7 @@ import type { MenuItemDef } from "~/components/win95";
 import { qk } from "~/api/queryKeys";
 import { releaseVmLock, removeVmFromInventory } from "~/api/endpoints/vms";
 import { ApiError } from "~/api/client";
-import { useAuth } from "~/auth";
+import { objKey, usePrivileges, useVmActionPrivileges } from "../rbac/privileges";
 import type { VmManagementAction, Vm } from "~/api/types";
 import { VmPowerButtons } from "./VmPowerButtons";
 import { moveStorageTargets } from "./vmActions/storage";
@@ -40,7 +40,13 @@ import { useInventorySelection } from "../selection";
 export function VmActionsBar({ vm }: { vm: Vm }) {
   const queryClient = useQueryClient();
   const mgmt = useVmManagementAction(vm);
-  const { isAdmin } = useAuth();
+  const privs = usePrivileges(objKey("vm", vm.id));
+  const hostPrivs = usePrivileges(objKey("host", vm.hostId));
+  const actionPriv = useVmActionPrivileges();
+  // greyed out unless the caller holds the privilege the VM action needs
+  const can = (action: string) => privs.can(actionPriv[action]);
+  const gate = (allowed: boolean, item: MenuItemDef): MenuItemDef =>
+    allowed || "type" in item ? item : { ...item, disabled: true };
   const { select } = useInventorySelection();
   const off = vm.state === "Off";
   // Host agent stopped checking in - the VM reads as Unknown and no agent-backed
@@ -125,56 +131,56 @@ export function VmActionsBar({ vm }: { vm: Vm }) {
   };
 
   const items: MenuItemDef[] = [
-    {
+    gate(can("edit"), {
       label: "Edit VM",
       icon: Pencil,
       onSelect: () => vmActionDialog.open({ kind: "edit", vmId: vm.id }),
-    },
-    {
+    }),
+    gate(can("rename"), {
       label: "Rename VM",
       icon: TextCursorInput,
       disabled: !off,
       onSelect: () => vmActionDialog.open({ kind: "rename", vmId: vm.id }),
-    },
-    {
+    }),
+    gate(can("notes_edit"), {
       label: "Edit Notes",
       icon: Pencil,
       onSelect: () => vmActionDialog.open({ kind: "notes", vmId: vm.id }),
-    },
-    {
+    }),
+    gate(privs.can("vm.config"), {
       label: "Move to Folder",
       icon: FolderInput,
       // no folder exists in the VM's cluster/host scope
       disabled: folderTargets.ready && folderTargets.targets.length === 0,
       onSelect: () => organizeDialog.open({ kind: "move-vm", vmId: vm.id }),
-    },
-    {
+    }),
+    gate(can("move_storage"), {
       label: "Move Storage",
       icon: HardDrive,
       // nowhere to move if the host reports only the volume the VM is on
       disabled: host.isSuccess && moveTargets.length === 0,
       onSelect: () =>
         vmActionDialog.open({ kind: "move-storage", vmId: vm.id }),
-    },
-    {
+    }),
+    gate(can("startup_change"), {
       label: "Edit AutoStart",
       icon: AlarmClock,
       onSelect: () => vmActionDialog.open({ kind: "autostart", vmId: vm.id }),
-    },
+    }),
     { type: "separator" },
     dvdMounted
-      ? {
+      ? gate(can("eject_dvd"), {
           label: "Eject DVD",
           icon: Disc,
           onSelect: () =>
             confirmAction("eject_dvd", `Eject the DVD from "${vm.name}"?`),
-        }
-      : {
+        })
+      : gate(can("mount_dvd"), {
           label: "Mount DVD",
           icon: Disc,
           onSelect: () =>
             vmActionDialog.open({ kind: "mount-dvd", vmId: vm.id }),
-        },
+        }),
     { type: "separator" },
     // migration and HA only make sense on a clustered host
     ...(inCluster
@@ -186,12 +192,12 @@ export function VmActionsBar({ vm }: { vm: Vm }) {
               ? "Migrate VM"
               : "Migrate VM (requires HA)",
             icon: Move,
-            disabled: !vm.highlyAvailable,
+            disabled: !vm.highlyAvailable || !can("migrate"),
             onSelect: () =>
               vmActionDialog.open({ kind: "migrate", vmId: vm.id }),
           },
           vm.highlyAvailable
-            ? {
+            ? gate(can("disable_ha"), {
                 label: "Disable HA",
                 icon: ShieldX,
                 onSelect: () =>
@@ -199,8 +205,8 @@ export function VmActionsBar({ vm }: { vm: Vm }) {
                     "disable_ha",
                     `Disable High Availability for "${vm.name}"?`,
                   ),
-              }
-            : {
+              })
+            : gate(can("enable_ha"), {
                 label: "Enable HA",
                 icon: ShieldCheck,
                 onSelect: () =>
@@ -208,7 +214,7 @@ export function VmActionsBar({ vm }: { vm: Vm }) {
                     "enable_ha",
                     `Enable High Availability for "${vm.name}"?`,
                   ),
-              },
+              }),
           { type: "separator" },
         ] as MenuItemDef[])
       : []),
@@ -216,7 +222,7 @@ export function VmActionsBar({ vm }: { vm: Vm }) {
     {
       label: "Clone VM",
       icon: Copy,
-      disabled: !off,
+      disabled: !off || !hostPrivs.can("vm.create"),
       onSelect: () =>
         organizeDialog.open({
           kind: "new-vm",
@@ -228,29 +234,30 @@ export function VmActionsBar({ vm }: { vm: Vm }) {
     {
       label: "Export as Template",
       icon: FileUp,
-      disabled: !off,
+      disabled: !off || !can("export_template") || !hostPrivs.can("vm.create"),
       onSelect: () =>
         vmActionDialog.open({ kind: "export-template", vmId: vm.id }),
     },
     { type: "separator" },
     vm.metricsEnabled
-      ? {
+      ? gate(can("disable_metrics"), {
           label: "Disable Metrics",
           icon: Gauge,
           onSelect: () =>
             mgmt.mutate({ kind: "action", action: "disable_metrics" }),
-        }
-      : {
+        })
+      : gate(can("enable_metrics"), {
           label: "Enable Metrics",
           icon: Gauge,
           onSelect: () =>
             mgmt.mutate({ kind: "action", action: "enable_metrics" }),
-        },
+        }),
   ];
 
   // while an operation is running on the VM - or the host agent is offline -
-  // every agent-backed action is off-limits. Exceptions: an admin's force-unlock
-  // for a stuck lock, and "Remove from Inventory" for a VM stranded on a dead host.
+  // every agent-backed action is off-limits. Exceptions: force-unlock for a
+  // stuck lock (`task.cancel`), and "Remove from Inventory" for a VM stranded on
+  // a dead host (`vm.delete`).
   let menuItems: MenuItemDef[] =
     locked || hostOffline
       ? items.map((it) => ("type" in it ? it : { ...it, disabled: true }))
@@ -263,16 +270,17 @@ export function VmActionsBar({ vm }: { vm: Vm }) {
         label: "Remove from Inventory",
         icon: Trash2,
         danger: true,
+        disabled: !privs.can("vm.delete"),
         onSelect: removeFromInventory,
       },
     ];
   }
-  if (locked && isAdmin) {
+  if (locked && privs.can("task.cancel")) {
     menuItems = [
       ...menuItems,
       { type: "separator" },
       {
-        label: "Force unlock (admin)",
+        label: "Force unlock",
         icon: Lock,
         danger: true,
         onSelect: forceUnlock,

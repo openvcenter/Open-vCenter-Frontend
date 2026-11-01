@@ -1,5 +1,5 @@
 import { redirect } from '@tanstack/react-router'
-import { hasAnyRole, isAdminRole } from './roles'
+import { hasAnyPrincipal, isAdminRole } from './roles'
 import type { AuthUser } from './types'
 
 type Ctx = { user: AuthUser | null }
@@ -13,13 +13,13 @@ export function requireAuth(context: Ctx, location: Loc) {
 }
 
 /**
- * Authenticated but no roles at all (and not an admin) → /access-denied.
- * Any role, or ADMINISTRATOR, is allowed through.
+ * Authenticated but no roles and no groups → /access-denied (permissions are
+ * granted to roles and groups only, so nothing could ever be granted). Anyone
+ * else gets in; what they see is the backend's call.
  */
 export function requireAnyRole(context: Ctx, location: Loc) {
   requireAuth(context, location)
-  const roles = context.user!.roles
-  if (!isAdminRole(roles) && !hasAnyRole(roles)) {
+  if (!hasAnyPrincipal(context.user)) {
     throw redirect({ to: '/access-denied' })
   }
 }

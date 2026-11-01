@@ -21,6 +21,7 @@ import { useInventorySelection } from "../selection";
 import { statusMessage } from "../actions/statusMessage";
 import { organizeDialog } from "../organize/dialogStore";
 import { useNewVmTarget } from "../useNewVmTarget";
+import { GLOBAL_KEY, objKey, useCan, useKeysWith, usePrivileges } from "../rbac/privileges";
 import { useTreeBehavior } from "~/preferences";
 import {
   ancestorsOf,
@@ -69,6 +70,20 @@ export function InventoryTree() {
   const folders = useQuery(foldersQuery({}));
   const vms = useQuery(vmsQuery());
   const templates = useQuery(templatesQuery());
+
+  const global = usePrivileges(GLOBAL_KEY);
+  const onlineHostKeys = (hosts.data ?? [])
+    .filter((h) => h.online)
+    .map((h) => objKey("host", h.id));
+  const creatable = useKeysWith("vm.create", onlineHostKeys);
+  const canNewFolder = useCan(
+    "folder.manage",
+    !folderScope
+      ? null
+      : "clusterId" in folderScope
+        ? objKey("cluster", folderScope.clusterId)
+        : objKey("host", folderScope.hostId),
+  );
 
   const nodes = React.useMemo(
     () =>
@@ -138,7 +153,7 @@ export function InventoryTree() {
         <TreeToolButton
           icon={MonitorUp}
           label="New VM"
-          disabled={!hasOnlineHost}
+          disabled={!hasOnlineHost || creatable.size === 0}
           title={
             hasOnlineHost
               ? undefined
@@ -149,17 +164,20 @@ export function InventoryTree() {
         <TreeToolButton
           icon={Network}
           label="New Cluster"
+          disabled={!global.can("cluster.manage")}
           onClick={() => organizeDialog.open({ kind: "cluster-management" })}
         />
         <TreeToolButton
           icon={Server}
           label="New Host"
+          disabled={!global.can("host.manage")}
           onClick={() => organizeDialog.open({ kind: "host-management" })}
         />
         {selection?.kind === "host" && folderScope ? (
           <TreeToolButton
             icon={FolderPlus}
             label="New Folder"
+            disabled={!canNewFolder}
             onClick={() =>
               organizeDialog.open({ kind: "new-folder", ...folderScope })
             }

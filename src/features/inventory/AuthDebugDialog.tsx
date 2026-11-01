@@ -1,5 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { Button, Dialog } from "~/components/win95";
 import type { useAuth } from "~/auth";
+import { meQuery } from "~/api/queries";
 
 export function AuthDebugDialog({
   auth,
@@ -8,6 +10,8 @@ export function AuthDebugDialog({
   auth: ReturnType<typeof useAuth>;
   onClose: () => void;
 }) {
+  // what the backend makes of the same session: principals + global privileges
+  const me = useQuery(meQuery());
   return (
     <Dialog
       title="Auth Debug"
@@ -28,6 +32,7 @@ export function AuthDebugDialog({
               isAdmin: auth.isAdmin,
               hasAnyRole: auth.hasAnyRole,
               user: auth.user,
+              backend: me.data ?? (me.isError ? String(me.error) : "loading…"),
             },
             null,
             2,

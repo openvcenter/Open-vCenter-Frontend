@@ -27,6 +27,18 @@ import {
 import type { VmListParams } from "./endpoints/vms";
 import { getTask, getTasks } from "./endpoints/tasks";
 import { getIsos, getTemplates } from "./endpoints/inventory";
+import {
+  getEffectivePermissions,
+  getHostConsole,
+  getMe,
+  getPermissions,
+  getPrincipals,
+  getRbacCatalog,
+  getRoles,
+  getVmConsole,
+} from "./endpoints/rbac";
+import type { PermissionScope } from "./endpoints/rbac";
+import type { Principal } from "./types";
 import { qk } from "./queryKeys";
 import { TERMINAL_TASK_STATUSES } from "./types";
 
@@ -239,4 +251,62 @@ export const agentStorageQuery = () =>
   queryOptions({
     queryKey: qk.agentStorage(),
     queryFn: ({ signal }) => getAgentStorage(signal),
+  });
+
+// ---- access control -------------------------------------------------------
+
+export const meQuery = () =>
+  queryOptions({
+    queryKey: qk.me(),
+    queryFn: ({ signal }) => getMe(signal),
+    staleTime: 60_000,
+  });
+
+export const rbacCatalogQuery = () =>
+  queryOptions({
+    queryKey: qk.rbacCatalog(),
+    queryFn: ({ signal }) => getRbacCatalog(signal),
+    staleTime: Infinity,
+  });
+
+export const rolesQuery = () =>
+  queryOptions({
+    queryKey: qk.roles(),
+    queryFn: ({ signal }) => getRoles(signal),
+  });
+
+export const permissionsQuery = (scope: PermissionScope) =>
+  queryOptions({
+    queryKey: qk.permissions(scope.scopeType, scope.scopeId),
+    queryFn: ({ signal }) => getPermissions(scope, signal),
+  });
+
+export const principalsQuery = (q: string) =>
+  queryOptions({
+    queryKey: qk.principals(q),
+    queryFn: ({ signal }) => getPrincipals(q, signal),
+    staleTime: 30_000,
+  });
+
+export const effectiveQuery = (principal: Principal, object: string) =>
+  queryOptions({
+    queryKey: qk.effective(`${principal.type}:${principal.id}`, object),
+    queryFn: ({ signal }) => getEffectivePermissions(principal, object, signal),
+  });
+
+/** Where the VM console connects - 403 without `vm.console`. */
+export const vmConsoleQuery = (id: string) =>
+  queryOptions({
+    queryKey: qk.vmConsole(id),
+    queryFn: ({ signal }) => getVmConsole(id, signal),
+    staleTime: 60_000,
+    retry: false,
+  });
+
+export const hostConsoleQuery = (id: string) =>
+  queryOptions({
+    queryKey: qk.hostConsole(id),
+    queryFn: ({ signal }) => getHostConsole(id, signal),
+    staleTime: 60_000,
+    retry: false,
   });

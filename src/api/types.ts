@@ -562,7 +562,9 @@ export type AuditTargetType =
   | "vlan"
   | "tag"
   | "tag_category"
-  | "agent_binary";
+  | "agent_binary"
+  | "role"
+  | "permission";
 
 /** One "who changed what" record - `GET /audit-events`. Outlives its target:
  *  `targetName` is the name at event time and the ids are not foreign keys. */
@@ -606,6 +608,101 @@ export function taskProgress(task: Task): number {
     default:
       return 100;
   }
+}
+
+// ---- Access control (roles / permissions) ---------------------------------
+
+/** A privilege id from `GET /rbac/catalog`, e.g. `vm.power`. */
+export type Privilege = string;
+
+export interface PrivilegeInfo {
+  id: Privilege;
+  group: string;
+  label: string;
+}
+
+export interface RbacCatalog {
+  privileges: PrivilegeInfo[];
+  /** VM action kind → the privilege it needs on the VM (null: none). */
+  vmActions: Record<string, Privilege | null>;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  description: string | null;
+  /** Administrator / Read-only / No access - not editable. */
+  builtin: boolean;
+  privileges: Privilege[];
+  permissionCount: number;
+}
+
+/** Permissions are granted to identity-provider roles and groups, never users. */
+export type PrincipalType = "role" | "group";
+export type PermissionScopeType = "global" | "cluster" | "host" | "folder" | "vm";
+
+export interface Principal {
+  type: PrincipalType;
+  id: string;
+}
+
+export interface Permission {
+  id: string;
+  principalType: PrincipalType;
+  principalId: string;
+  roleId: string;
+  roleName: string;
+  scopeType: PermissionScopeType;
+  scopeId: string | null;
+  scopeName: string | null;
+  /** false: applies to the object itself only. */
+  propagate: boolean;
+  createdBy: string | null;
+  createdAt: string | null;
+}
+
+export interface PermissionList {
+  direct: Permission[];
+  /** Entries on objects above this one that reach it (propagate = true). */
+  inherited: Permission[];
+}
+
+export interface EffectiveLevel {
+  scopeType: PermissionScopeType;
+  scopeId: string | null;
+  scopeName: string | null;
+  blocked: boolean;
+  /** The most specific level with entries on this path - the one that counts. */
+  winner: boolean;
+  permissions: Permission[];
+}
+
+export interface EffectivePermissions {
+  principal: Principal;
+  superuser: boolean;
+  visible: boolean;
+  privileges: Privilege[];
+  /** `object` for clusters / hosts / folders; `vm`, `folder`, `host` for a VM. */
+  paths: { name: string; levels: EffectiveLevel[] }[];
+}
+
+export interface Me {
+  id: string;
+  email: string;
+  displayName: string | null;
+  roles: string[];
+  groups: string[];
+  /** Carries the admin role: every privilege everywhere. */
+  superuser: boolean;
+  globalPrivileges: Privilege[];
+}
+
+/** Where a console connects (`GET /vms/:id/console`, `GET /hosts/:id/console`). */
+export interface ConsoleTarget {
+  hostname: string;
+  port: number;
+  /** VM console only: the vmconnect preconnection blob. */
+  vmGuid: string | null;
 }
 
 // ---- Error envelope -------------------------------------------------------

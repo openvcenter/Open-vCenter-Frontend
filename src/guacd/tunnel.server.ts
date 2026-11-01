@@ -45,6 +45,7 @@ export const GuacStatus = {
   UPSTREAM_NOT_FOUND: { code: 0x0207, http: 502 },
   CLIENT_BAD_REQUEST: { code: 0x0300, http: 400 },
   CLIENT_UNAUTHORIZED: { code: 0x0301, http: 403 },
+  CLIENT_FORBIDDEN: { code: 0x0303, http: 403 },
 } as const;
 type GuacStatusValue = (typeof GuacStatus)[keyof typeof GuacStatus];
 

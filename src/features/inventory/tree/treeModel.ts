@@ -112,10 +112,11 @@ function clusterNode(
             ),
           ]
         : []),
+      // a folder holds its VMs from any host, also one the caller can't see
       ...clusterFolders.map((f) =>
         folderNode(
           f,
-          clusterVms.filter((v) => v.folderId === f.id),
+          vms.filter((v) => v.folderId === f.id),
         ),
       ),
       ...clusterVms
@@ -180,6 +181,28 @@ export function buildInventoryTree(params: {
   // Standalone hosts sit at the root, right after the clusters - no wrapper node.
   for (const host of hosts.filter((h) => !h.clusterId)) {
     nodes.push(standaloneHostNode(host, folders, vms, templates));
+  }
+
+  // The backend lists only what the caller is granted, never the objects
+  // around it: a folder or VM whose cluster / host isn't listed would have no
+  // parent. Those go at the root, after everything else - folders (with their
+  // VMs), then lone VMs.
+  const placed = new Set<string>();
+  const collect = (list: TreeNode[]) => {
+    for (const n of list) {
+      placed.add(n.id);
+      if (n.children) collect(n.children);
+    }
+  };
+  collect(nodes);
+  const byName = <T extends { name: string }>(a: T, b: T) => a.name.localeCompare(b.name);
+  const rootFolders = folders.filter((f) => !placed.has(`folder:${f.id}`)).sort(byName);
+  for (const f of rootFolders) {
+    nodes.push(folderNode(f, vms.filter((v) => v.folderId === f.id)));
+  }
+  collect(nodes.slice(nodes.length - rootFolders.length));
+  for (const vm of vms.filter((v) => !placed.has(`vm:${v.id}`)).sort(byName)) {
+    nodes.push(vmNode(vm));
   }
 
   return nodes;

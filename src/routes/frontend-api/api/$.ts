@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getAccessToken } from "~/auth/token.server";
-import { isDevBypass } from "~/auth/bypass";
+import { backendBase, backendToken } from "~/api/backend.server";
 
 /**
  * Server-side reverse proxy to ovc-backend's REST API. The browser calls
@@ -14,15 +13,6 @@ import { isDevBypass } from "~/auth/bypass";
 
 const PREFIX = "/frontend-api/api";
 
-function backendBase(): string {
-  const base = process.env.API_URL;
-  if (!base)
-    throw new Error(
-      "API_URL is not set (base URL of ovc-backend, e.g. http://localhost:8000/api)",
-    );
-  return base.replace(/\/$/, "");
-}
-
 function jsonError(status: number, code: string, message: string) {
   return new Response(JSON.stringify({ error: { code, message } }), {
     status,
@@ -32,8 +22,8 @@ function jsonError(status: number, code: string, message: string) {
 
 async function proxy(request: Request): Promise<Response> {
   // Dev bypass: forward with no bearer - ovc-backend must run OVC_AUTH_MODE=stub.
-  const token = isDevBypass() ? null : await getAccessToken();
-  if (!token && !isDevBypass()) {
+  const token = await backendToken();
+  if (token === undefined) {
     return jsonError(401, "UNAUTHORIZED", "No valid session");
   }
 

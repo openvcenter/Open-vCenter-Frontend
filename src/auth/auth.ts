@@ -3,7 +3,7 @@ import { genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { jwtDecode } from "jwt-decode";
 import type { GenericOAuthUserInfo } from "better-auth/plugins";
-import { DEFAULT_ROLES_CLAIM, rolesFromClaims } from "./roles";
+import { DEFAULT_GROUPS_CLAIM, DEFAULT_ROLES_CLAIM, rolesFromClaims } from "./roles";
 
 /**
  * OIDC login, brokered by better-auth in **cookie mode** (no database) - the
@@ -40,6 +40,10 @@ const ROLES_CLAIM = (
   process.env.OIDC_ROLES_CLAIM || DEFAULT_ROLES_CLAIM
 ).replace("${client_id}", oidc.clientId ?? "");
 
+const GROUPS_CLAIM = (
+  process.env.OIDC_GROUPS_CLAIM || DEFAULT_GROUPS_CLAIM
+).replace("${client_id}", oidc.clientId ?? "");
+
 const SCOPES = (process.env.OIDC_SCOPES || "openid profile email")
   .split(/\s+/)
   .filter(Boolean);
@@ -61,6 +65,7 @@ function createAuth() {
     user: {
       additionalFields: {
         roles: { type: "json", fieldName: "roles" },
+        groups: { type: "json", fieldName: "groups" },
       },
     },
     session: {
@@ -91,6 +96,7 @@ function createAuth() {
               const accessClaims = decodeClaims(tokens.accessToken);
               const claims = accessClaims ?? decodeClaims(tokens.idToken) ?? {};
               const roles = rolesFromClaims(claims, ROLES_CLAIM);
+              const groups = rolesFromClaims(claims, GROUPS_CLAIM);
 
               return Promise.resolve({
                 // `sub` (not `id`) is what better-auth's default accountSubject
@@ -108,6 +114,7 @@ function createAuth() {
                 ),
                 emailVerified: claims.email_verified === true,
                 roles,
+                groups,
               } as GenericOAuthUserInfo);
             },
             // Without this, `roles` on the object returned by getUserInfo above
@@ -117,8 +124,9 @@ function createAuth() {
             // if this isn't set, that's `{}`. This is what actually wires our
             // custom `roles` additionalField.
             mapProfileToUser: (profile) => {
-              const roles = (profile as { roles?: unknown }).roles;
-              return { roles: Array.isArray(roles) ? roles.map(String) : [] };
+              const { roles, groups } = profile as { roles?: unknown; groups?: unknown };
+              const list = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
+              return { roles: list(roles), groups: list(groups) };
             },
           },
         ],

@@ -69,8 +69,10 @@ with a discovery document - Keycloak, Auth0, Okta, Entra ID, … Point `OIDC_ISS
 at it and register `${app}/frontend-api/auth/callback/oidc` as a redirect URI.
 `../infra-containers` ships a Keycloak realm (`ovc`, client `ovc-frontend`) as the
 default. Roles are read from the token at `OIDC_ROLES_CLAIM` (default
-`resource_access.${client_id}.roles`): `ADMINISTRATOR` = full access; a signed-in
-user with no roles lands on `/access-denied`. Configure `OIDC_*` / `BETTER_AUTH_*`
+`resource_access.${client_id}.roles`) and groups at `OIDC_GROUPS_CLAIM` (default
+`groups`). Permissions are granted to those roles and groups (Administration ▸
+Roles, and a Permissions tab on every object); `ADMINISTRATOR` = full access; a
+signed-in user with no role and no group lands on `/access-denied`. Configure `OIDC_*` / `BETTER_AUTH_*`
 / `API_URL` in `.env.local` (`.env.example`).
 
 For local UI work without a provider, set **`OVC_AUTH_MODE=stub`** on both this app
@@ -98,6 +100,7 @@ provider). There is no in-frontend mock.
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | yes (server) | -                                    | A confidential OIDC client for this app.                                                                                                                                                                                                                                                                  |
 | `OIDC_SCOPES`                           | no           | `openid profile email`               | Space-separated scopes to request.                                                                                                                                                                                                                                                                        |
 | `OIDC_ROLES_CLAIM`                      | no           | `resource_access.${client_id}.roles` | Dot-path to the roles array in the token; `${client_id}` is substituted. Keycloak realm roles → `realm_access.roles`; Auth0/Okta → `roles` or a namespaced claim.                                                                                                                                         |
+| `OIDC_GROUPS_CLAIM`                     | no           | `groups`                             | Dot-path to the groups array in the token (same syntax). Mirrors ovc-backend's `OVC_OIDC_GROUPS_CLAIM`. |
 | `BETTER_AUTH_SECRET`                    | yes (server) | -                                    | 32-byte hex (`openssl rand -hex 32`) - seals the session cookies.                                                                                                                                                                                                                                         |
 | `BETTER_AUTH_URL`                       | yes (server) | -                                    | Public URL of the auth endpoints, e.g. `http://localhost:3000/frontend-api/auth`.                                                                                                                                                                                                                         |
 | `OVC_AUTH_MODE`                         | no (server)  | `oidc`                               | `stub` ⇒ skip OIDC, every request is `admin@ovc.debug.app` / `[ADMINISTRATOR]`. Same variable, same value as ovc-backend's `OVC_AUTH_MODE` - set both to `stub` and neither side needs an IdP. Works in every build, including `production`. When set, `OIDC_*` / `BETTER_AUTH_*` are not required.       |
@@ -215,9 +218,9 @@ src/
 
   auth/                       The single place auth logic lives.
     auth.ts                   better-auth client (cookie mode), genericOAuth via
-                              OIDC discovery; getUserInfo → roles at OIDC_ROLES_CLAIM
+                              OIDC discovery; getUserInfo → roles / groups at OIDC_ROLES_CLAIM / OIDC_GROUPS_CLAIM
     types.ts                  AuthUser / AuthContextValue
-    roles.ts                  ADMIN_ROLE, isAdminRole/hasAnyRole, claimByPath/rolesFromClaims
+    roles.ts                  ADMIN_ROLE, isAdminRole/hasAnyRole/hasAnyPrincipal, claimByPath/rolesFromClaims
     server.ts                 server fns: fetchCurrentUser, signInFn,
                               clearAuthCookies, logoutFn
     token.server.ts           getAccessToken() - server-only, used by the proxy

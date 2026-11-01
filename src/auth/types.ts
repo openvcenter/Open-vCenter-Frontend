@@ -2,16 +2,19 @@ export interface AuthUser {
   id: string
   email: string
   displayName?: string
-  /** Roles from the OIDC token (see OIDC_ROLES_CLAIM). Empty ⇒ access-denied screen. */
+  /** Roles from the OIDC token (see OIDC_ROLES_CLAIM). */
   roles: string[]
+  /** Groups from the OIDC token (see OIDC_GROUPS_CLAIM). No roles and no groups ⇒ access-denied. */
+  groups: string[]
 }
 
 export interface AuthContextValue {
   user: AuthUser | null
   isAuthenticated: boolean
-  /** True when the user carries the ADMINISTRATOR role (full access). */
+  /** True when the user carries the ADMINISTRATOR role (superuser). UI gating
+   *  uses privileges instead - see features/inventory/rbac/privileges.ts. */
   isAdmin: boolean
-  /** Whether the user has at least one role (any role ⇒ can enter the app). */
+  /** Whether the user has at least one role or group (⇒ can enter the app). */
   hasAnyRole: boolean
   /** True when OVC_AUTH_MODE=stub is active - no login, everyone is admin. */
   authDisabled: boolean

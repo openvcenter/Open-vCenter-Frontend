@@ -31,4 +31,5 @@ export const DEV_BYPASS_USER: AuthUser = {
   email: "admin@ovc.debug.app",
   displayName: "Debug Admin",
   roles: [ADMIN_ROLE],
+  groups: [],
 };

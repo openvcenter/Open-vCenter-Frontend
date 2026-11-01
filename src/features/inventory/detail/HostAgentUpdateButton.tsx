@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "~/components/win95";
-import { useAuth } from "~/auth";
+import { useGlobalCan } from "../rbac/privileges";
 import { agentBinariesQuery } from "~/api/queries";
 import { updateHostAgent } from "~/api/endpoints/hosts";
 import { ApiError } from "~/api/client";
@@ -11,12 +11,13 @@ import { statusMessage } from "../actions/statusMessage";
 
 /**
  * Header action on a connected host: offers to upgrade the agent to the active
- * build when the host is running an older version. Admin-only.
+ * build when the host is running an older version. Needs `host.manage`
+ * globally (the agent-binary catalog is a global resource).
  */
 export function HostAgentUpdateButton({ host }: { host: Host }) {
-  const { isAdmin } = useAuth();
+  const canManage = useGlobalCan("host.manage");
   const qc = useQueryClient();
-  const binaries = useQuery({ ...agentBinariesQuery(), enabled: isAdmin });
+  const binaries = useQuery({ ...agentBinariesQuery(), enabled: canManage });
 
   const target = (binaries.data ?? []).find(
     (b) => b.isActive && b.hypervisor === host.hypervisor,
@@ -33,7 +34,7 @@ export function HostAgentUpdateButton({ host }: { host: Host }) {
       statusMessage.set(err instanceof ApiError ? err.message : String(err)),
   });
 
-  if (!isAdmin || !host.agent.connected || !target) return null;
+  if (!canManage || !host.agent.connected || !target) return null;
   if (host.agent.version === target.version) return null;
 
   const run = async () => {

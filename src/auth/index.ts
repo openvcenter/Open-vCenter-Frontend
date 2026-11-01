@@ -1,5 +1,5 @@
 export type { AuthUser, AuthContextValue } from './types'
-export { ADMIN_ROLE, isAdminRole, hasAnyRole } from './roles'
+export { ADMIN_ROLE, isAdminRole, hasAnyRole, hasAnyPrincipal } from './roles'
 export { AuthProvider } from './provider'
 export { useAuth } from './useAuth'
 export { requireAuth, requireAnyRole, requireAdmin } from './guard'
