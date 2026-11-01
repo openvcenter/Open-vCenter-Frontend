@@ -8,6 +8,18 @@ All notable changes to ovc-frontend. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `OIDC_INTERNAL_URL`: the OIDC issuer as the frontend server reaches it, for
+  containers where the browser-facing `OIDC_ISSUER` doesn't resolve from inside
+  (Docker Compose, Kubernetes). Discovery is fetched from it.
+
+### Fixed
+
+- Sign-in no longer stays broken with "Provider not found" when the OIDC provider
+  was unreachable while the frontend started: discovery is retried until it
+  succeeds, and the login screen says when the provider is unreachable.
+
 ## [0.4.0] - 2026-10-25
 
 ### Added

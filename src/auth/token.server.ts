@@ -1,5 +1,5 @@
 import { getRequest } from "@tanstack/react-start/server";
-import { auth } from "./auth";
+import { getAuth } from "./auth";
 
 /**
  * The current OIDC access token, refreshed if expired. Server-only (`.server.ts`)
@@ -13,7 +13,9 @@ import { auth } from "./auth";
  */
 export async function getAccessToken(): Promise<string | null> {
   try {
-    const data = await auth.api.getAccessToken({
+    const data = await (
+      await getAuth()
+    ).api.getAccessToken({
       body: { useAccountCookie: true },
       headers: getRequest().headers,
     });

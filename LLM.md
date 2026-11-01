@@ -475,6 +475,7 @@ Always invalidate by prefix: `['vms']`, `['hosts']`, `['tasks']` and so on.
 | `API_URL`                                                                                  | server           | ovc-backend base URL (e.g. `http://localhost:8000/api`)                                     |
 | `VITE_API_URL`                                                                             | client           | API base as seen by the browser. Default `/frontend-api/api`; absolute in split-origin dev  |
 | `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_SCOPES?`, `OIDC_ROLES_CLAIM?` | server           | OIDC provider (discovery). The roles claim defaults to `resource_access.${client_id}.roles` |
+| `OIDC_INTERNAL_URL?`                                                                       | server           | The issuer as the server reaches it, when it differs from the browser-facing `OIDC_ISSUER` (containers). Discovery only; see Auth (OIDC) |
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`                                                    | server           | better-auth                                                                                 |
 | `VITE_OIDC_PROVIDER_NAME?`                                                                 | client           | login button label                                                                          |
 | `OVC_AUTH_MODE=stub`                                                                       | server           | auth bypass (set the same value on ovc-backend)                                             |
@@ -1273,9 +1274,26 @@ src/
 `better-auth` in **cookie mode** (no database) brokers login against **any** OpenID
 Connect provider that has a discovery document (Keycloak, Auth0, Okta, Entra ID, …).
 It uses `genericOAuth` with
-`discoveryUrl = ${OIDC_ISSUER}/.well-known/openid-configuration` and
-`providerId = "oidc"`. The provider, realm and client are dedicated to ovc;
-infra-containers ships a Keycloak realm as the default.
+`discoveryUrl = ${OIDC_INTERNAL_URL ?? OIDC_ISSUER}/.well-known/openid-configuration`
+(`OIDC_DISCOVERY_URL` in `src/auth/auth.ts`) and `providerId = "oidc"`. The
+provider, realm and client are dedicated to ovc; infra-containers ships a
+Keycloak realm as the default.
+
+- **Two addresses.** `OIDC_ISSUER` is the browser-facing issuer (it must equal
+  the token's `iss`). `OIDC_INTERNAL_URL` is the same issuer as the server
+  reaches it, needed in containers where the browser's URL doesn't resolve or
+  points elsewhere (inside a container `localhost` is the container). Only
+  discovery is fetched from it; the provider must return a browser-facing
+  `authorization_endpoint` and server-reachable token / userinfo / jwks
+  endpoints (Keycloak: `KC_HOSTNAME=<public URL>` +
+  `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true`).
+- **Discovery retry.** better-auth fetches discovery once, when the instance is
+  built, and silently drops the provider if that fails. `getAuth()` rebuilds the
+  instance (at most every 5 s) while the provider is missing, so sign-in recovers
+  without a restart once the provider is up. Always use `await getAuth()`, never a
+  module-level instance. While it is missing, `signInFn` throws
+  `PROVIDER_UNAVAILABLE` and the login screen says the provider is unreachable;
+  session reads keep working (cookies only).
 
 1. `/login` → the "Sign in" button → `signInFn` → redirect to the provider.
 2. The callback lands at `/frontend-api/auth/callback/oidc`. `getUserInfo` decodes

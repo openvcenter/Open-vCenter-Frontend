@@ -1,7 +1,7 @@
 import * as React from "react";
 import { KeyRound } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
-import { clearAuthCookies, signInFn } from "~/auth";
+import { PROVIDER_UNAVAILABLE, clearAuthCookies, signInFn } from "~/auth";
 import { Button, Dropdown, Icon, Window } from "~/components/win95";
 import { THEMES, isThemeId, useTheme } from "~/preferences";
 
@@ -15,6 +15,7 @@ export function Login({
   const callSignIn = useServerFn(signInFn);
   const callClear = useServerFn(clearAuthCookies);
   const [loading, setLoading] = React.useState(false);
+  const [failure, setFailure] = React.useState<string | null>(null);
   const { theme, setTheme } = useTheme();
 
   const providerName = import.meta.env.VITE_OIDC_PROVIDER_NAME;
@@ -22,6 +23,7 @@ export function Login({
 
   const signIn = async () => {
     setLoading(true);
+    setFailure(null);
     try {
       // drop stale cookies so an expired session can't wedge the new flow
       await callClear();
@@ -32,6 +34,11 @@ export function Login({
       // better-auth API mismatch, ...) just looks like the button doing
       // nothing - no visible error, loading resets silently.
       console.error("Sign-in failed:", err);
+      setFailure(
+        err instanceof Error && err.message.includes(PROVIDER_UNAVAILABLE)
+          ? "The sign-in provider is unreachable. Try again in a moment; if it keeps failing, check the server logs."
+          : "Sign-in failed. Please try again.",
+      );
       setLoading(false);
     }
   };
@@ -52,9 +59,9 @@ export function Login({
           <p className="text-base">
             Sign in with your organization account to continue.
           </p>
-          {error ? (
+          {failure || error ? (
             <p className="text-base text-accent">
-              Sign-in failed. Please try again.
+              {failure ?? "Sign-in failed. Please try again."}
             </p>
           ) : null}
           <Button block disabled={loading} onClick={signIn}>

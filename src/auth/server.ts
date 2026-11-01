@@ -1,7 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { redirect } from "@tanstack/react-router";
-import { auth, OIDC_PROVIDER_ID } from "./auth";
+import {
+  OIDC_DISCOVERY_URL,
+  OIDC_PROVIDER_ID,
+  getAuth,
+  isProviderReady,
+} from "./auth";
 import { DEV_BYPASS_USER, isDevBypass } from "./bypass";
 import type { AuthUser } from "./types";
 
@@ -14,7 +19,9 @@ export const fetchCurrentUser = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ user: AuthUser | null; authDisabled: boolean }> => {
     if (isDevBypass()) return { user: DEV_BYPASS_USER, authDisabled: true };
 
-    const data = await auth.api.getSession({ headers: getRequest().headers });
+    const data = await (
+      await getAuth()
+    ).api.getSession({ headers: getRequest().headers });
     if (!data?.session) return { user: null, authDisabled: false };
     const u = data.user as {
       id: string;
@@ -34,14 +41,28 @@ export const fetchCurrentUser = createServerFn({ method: "GET" }).handler(
   },
 );
 
+/** Error message signInFn throws when the OIDC provider can't be reached. */
+export const PROVIDER_UNAVAILABLE = "OIDC_PROVIDER_UNAVAILABLE";
+
 /** Kick off the OIDC redirect. Returns the URL for the browser to navigate to. */
 export const signInFn = createServerFn({ method: "POST" })
   .validator((d: { callbackURL?: string }) => d)
   .handler(async ({ data }) => {
+    // Discovery failed (provider down or unreachable from this server) - say
+    // so instead of better-auth's generic "Provider not found".
+    if (!(await isProviderReady())) {
+      console.error(
+        `[auth] OIDC provider unavailable: discovery at ${OIDC_DISCOVERY_URL} failed. ` +
+          "Check OIDC_ISSUER / OIDC_INTERNAL_URL and that the provider is up.",
+      );
+      throw new Error(PROVIDER_UNAVAILABLE);
+    }
     // better-auth's genericOAuth plugin registers each configured provider as
     // a first-class social provider (no plugin-specific sign-in endpoint) -
     // go through the core signInSocial API, not a dedicated OAuth2 method.
-    const result = await auth.api.signInSocial({
+    const result = await (
+      await getAuth()
+    ).api.signInSocial({
       headers: getRequest().headers,
       body: {
         provider: OIDC_PROVIDER_ID,
@@ -60,7 +81,7 @@ export const signInFn = createServerFn({ method: "POST" })
 export const clearAuthCookies = createServerFn({ method: "POST" }).handler(
   async () => {
     try {
-      await auth.api.signOut({ headers: getRequest().headers });
+      await (await getAuth()).api.signOut({ headers: getRequest().headers });
     } catch {
       // already invalid / expired - nothing to clear
     }
@@ -71,7 +92,7 @@ export const logoutFn = createServerFn().handler(async () => {
   // Nothing to sign out of while the dev bypass is active.
   if (isDevBypass()) throw redirect({ href: "/inventory" });
   try {
-    await auth.api.signOut({ headers: getRequest().headers });
+    await (await getAuth()).api.signOut({ headers: getRequest().headers });
   } catch {
     // ignore - session may already be gone
   }
