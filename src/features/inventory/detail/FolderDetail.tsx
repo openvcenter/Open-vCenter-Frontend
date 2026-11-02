@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { Button, Icon, PropertyList, Tabs } from '~/components/win95'
 import type { TabItem } from '~/components/win95'
 import {
@@ -58,16 +58,28 @@ export function FolderDetail({ folderId }: { folderId: string }) {
         title={folder?.name ?? 'Loading folder…'}
         subtitle={scope}
         actions={
-          <Button
-            className="min-w-0 px-2"
-            disabled={!canManage}
-            onClick={() =>
-              organizeDialog.open({ kind: 'delete-folder', folderId })
-            }
-          >
-            <Icon icon={Trash2} size={14} className="text-danger" />
-            Delete Folder
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              className="min-w-0 px-2"
+              disabled={!canManage}
+              onClick={() =>
+                organizeDialog.open({ kind: 'rename-folder', folderId })
+              }
+            >
+              <Icon icon={Pencil} size={14} />
+              Rename Folder
+            </Button>
+            <Button
+              className="min-w-0 px-2"
+              disabled={!canManage}
+              onClick={() =>
+                organizeDialog.open({ kind: 'delete-folder', folderId })
+              }
+            >
+              <Icon icon={Trash2} size={14} className="text-danger" />
+              Delete Folder
+            </Button>
+          </div>
         }
       />
       <Tabs tabs={tabs} value={active} onChange={setTab} className="min-h-0 flex-1">

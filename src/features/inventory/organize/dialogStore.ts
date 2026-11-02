@@ -21,6 +21,7 @@ export type OrganizeDialog =
     }
   | { kind: 'move-vm'; vmId: string }
   | { kind: 'move-host'; hostId: string }
+  | { kind: 'rename-folder'; folderId: string }
   | { kind: 'delete-folder'; folderId: string }
   | null
 
