@@ -1,7 +1,14 @@
 import * as React from "react";
 import { cn } from "./bevel";
 
-/** Static, non-virtualised table for short lists inside detail panels. */
+/**
+ * Static, non-virtualised table for short lists inside detail panels.
+ *
+ * The sunken bevel is an inset shadow, which content paints over - so it sits
+ * on an outer box padded by the bevel width, and the table scrolls in an inner
+ * box. Selected / hovered rows then stay inside the border. `wrapperClassName`
+ * sizes the outer box (`h-…` / `max-h-…`).
+ */
 export function Table({
   className,
   wrapperClassName,
@@ -11,12 +18,14 @@ export function Table({
 }) {
   return (
     <div
-      className={cn("bevel-sunken bg-window overflow-auto", wrapperClassName)}
+      className={cn("bevel-sunken bg-window flex flex-col p-[2px]", wrapperClassName)}
     >
-      <table
-        className={cn("w-full border-collapse text-base", className)}
-        {...props}
-      />
+      <div className="min-h-0 flex-1 overflow-auto">
+        <table
+          className={cn("w-full border-collapse text-base", className)}
+          {...props}
+        />
+      </div>
     </div>
   );
 }

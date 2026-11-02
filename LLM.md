@@ -1422,6 +1422,10 @@ provider), then set `VITE_API_URL=http://localhost:3000/frontend-api/api` in
   Win95 `Dialog`: `await confirm({ title, message, danger })` from
   `features/inventory/confirm.tsx`. Report errors with `statusMessage.set(...)`.
 - **VM iconography**: always the transport-control icons (see Icons).
+- **Sunken wells hold their content inside the bevel.** `bevel-sunken` is an inset
+  shadow and children paint over it, so a well with selectable or hover-highlighted
+  rows pads by the bevel width and scrolls in an inner box (`Table` does this:
+  outer `p-[2px]` + `wrapperClassName` sizing, inner `overflow-auto`).
 - **Keyboard model of the win95 primitives** (keep it when adding widgets):
   - `Tabs`, `Menu` and `SectionList` are one Tab stop each; arrows / Home / End
     move inside (`moveFocus`). Tabs and SectionList select on arrival. `Menu`
