@@ -27,6 +27,7 @@ import { confirm } from "../confirm";
 import { useVmBatchPowerAction } from "../actions/useVmBatchPowerAction";
 import type { VmBatchAction } from "../actions/useVmBatchPowerAction";
 import { POWER_ACTIONS } from "../actions/powerActions";
+import { useVmsAllowedTo } from "../rbac/privileges";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -158,6 +159,13 @@ export function VmGrid({
   const [stateFilter, setStateFilter] = React.useState("");
   const [snapshotFilter, setSnapshotFilter] = React.useState("");
   const [selectedVms, setSelectedVms] = React.useState<Vm[]>([]);
+  // a batch button is greyed out unless every selected VM allows the action
+  const selectedIds = selectedVms.map((v) => v.id);
+  const allowed: Record<VmBatchAction, Set<string>> = {
+    start: useVmsAllowedTo("start", selectedIds),
+    shutdown: useVmsAllowedTo("shutdown", selectedIds),
+    stop: useVmsAllowedTo("stop", selectedIds),
+  };
   const gridApiRef = React.useRef<GridApi<Vm> | null>(null);
 
   // The host list polls, so `hostNames` is a new Map every few seconds. Read it
@@ -300,7 +308,10 @@ export function VmGrid({
               <Button
                 key={id}
                 className="min-w-0 px-2"
-                disabled={batch.isPending}
+                disabled={
+                  batch.isPending ||
+                  selectedIds.some((vmId) => !allowed[id].has(vmId))
+                }
                 onClick={() => runBatch(id)}
               >
                 <Icon icon={def.icon} size={14} className={def.color} />

@@ -4,6 +4,7 @@ import { Button, Icon, Table, Td, Th } from "~/components/win95";
 import { hostsQuery } from "~/api/queries";
 import type { Vm } from "~/api/types";
 import { VmStateLabel } from "../../tree/nodeIcons";
+import { useVmsAllowedTo } from "../../rbac/privileges";
 import { vmActionDialog } from "../vmActions/dialogStore";
 
 const isNothing = (vm: Vm) => !vm.autoStartAction || vm.autoStartAction === "Nothing";
@@ -47,6 +48,7 @@ export function VmStartupOrderingPanel({
   const hostName = (id: string) =>
     hosts.data?.find((h) => h.id === id)?.name ?? "-";
   const rows = startupOrder(vms);
+  const canEdit = useVmsAllowedTo("startup_change", rows.map((v) => v.id));
   // VMs with the same delay start together, so they share a position
   const delays = [
     ...new Set(
@@ -98,7 +100,7 @@ export function VmStartupOrderingPanel({
                 <Td>
                   <Button
                     className="min-w-0 px-2"
-                    disabled={!!vm.lock}
+                    disabled={!!vm.lock || !canEdit.has(vm.id)}
                     onClick={() =>
                       vmActionDialog.open({ kind: "autostart", vmId: vm.id })
                     }

@@ -12,6 +12,7 @@ import {
 import type { Vm } from "~/api/types";
 import { foldersQuery, hostQuery } from "~/api/queries";
 import { bytes, dateTime, duration, percent, relTime } from "../../format";
+import { useVmActionCan } from "../../rbac/privileges";
 import { vmActionDialog } from "../vmActions/dialogStore";
 import { VmConsoleBox } from "./VmConsoleBox";
 import { VmTagsBox } from "./VmTagsBox";
@@ -19,6 +20,7 @@ import { VmTagsBox } from "./VmTagsBox";
 export function VmSummaryPanel({ vm }: { vm: Vm }) {
   const folders = useQuery(foldersQuery({}));
   const host = useQuery({ ...hostQuery(vm.hostId), enabled: !!vm.hostId });
+  const can = useVmActionCan(vm.id);
   const inCluster = !!host.data?.clusterId;
   const hostOffline = host.isSuccess && !host.data.online;
   const folderName = vm.folderId
@@ -126,6 +128,7 @@ export function VmSummaryPanel({ vm }: { vm: Vm }) {
             {/* notes are DB-only and stay editable while the VM is locked */}
             <Button
               className="min-w-0 px-2"
+              disabled={!can("notes_edit")}
               onClick={() =>
                 vmActionDialog.open({ kind: "notes", vmId: vm.id })
               }
@@ -151,7 +154,7 @@ export function VmSummaryPanel({ vm }: { vm: Vm }) {
           <div className="mb-2 flex justify-end">
             <Button
               className="min-w-0 px-2"
-              disabled={!!vm.lock}
+              disabled={!!vm.lock || !can("edit")}
               onClick={() =>
                 vmActionDialog.open({
                   kind: "edit",
@@ -194,7 +197,7 @@ export function VmSummaryPanel({ vm }: { vm: Vm }) {
           <div className="mb-2 flex justify-end">
             <Button
               className="min-w-0 px-2"
-              disabled={!!vm.lock}
+              disabled={!!vm.lock || !can("edit")}
               onClick={() =>
                 vmActionDialog.open({ kind: "edit", vmId: vm.id, tab: "disks" })
               }

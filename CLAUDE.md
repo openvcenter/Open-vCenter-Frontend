@@ -79,7 +79,8 @@ guacamole-common-js · react-resizable-panels **v3** (pinned).
 - **RBAC is server-side.** Never send an identity or scope. Gate UI by privilege with
   `useCan(priv, objKey)` / `useGlobalCan` / `usePrivileges` (`rbac/privileges.ts`),
   greying the item out, never by `useAuth().isAdmin`. A new VM action takes its
-  privilege from the catalog's `vmActions` (`useVmActionPrivileges`).
+  privilege from the catalog's `vmActions` (`useVmActionCan(vmId)(action)`,
+  `useVmsAllowedTo` for lists) - every button that triggers it, in any panel.
 
 ## How operations work
 

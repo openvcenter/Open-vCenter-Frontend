@@ -6,6 +6,7 @@ import { POWER_ACTIONS } from '../../actions/powerActions'
 import { useVmPowerAction } from '../../actions/useVmPowerAction'
 import { useVmManagementAction } from '../../actions/useVmManagementAction'
 import { confirm } from '../../confirm'
+import { useVmActionCan } from '../../rbac/privileges'
 import { vmActionDialog } from '../vmActions/dialogStore'
 
 // the console toolbar's subset of the header power buttons, same order
@@ -23,6 +24,7 @@ const CONSOLE_POWER: VmPowerAction[] = ['start', 'shutdown', 'stop', 'restart']
 export function ConsoleVmActions({ vm }: { vm: Vm }) {
   const power = useVmPowerAction(vm)
   const mgmt = useVmManagementAction(vm)
+  const can = useVmActionCan(vm.id)
 
   const busy =
     power.isPending ||
@@ -52,7 +54,7 @@ export function ConsoleVmActions({ vm }: { vm: Vm }) {
               }
               power.mutate({ action: id })
             }}
-            disabled={busy || !def.allowedStates.includes(vm.state)}
+            disabled={busy || !can(id) || !def.allowedStates.includes(vm.state)}
           />
         )
       })}
@@ -67,7 +69,7 @@ export function ConsoleVmActions({ vm }: { vm: Vm }) {
               mgmt.mutate({ kind: 'action', action: 'eject_dvd' })
             }
           }}
-          disabled={busy}
+          disabled={busy || !can('eject_dvd')}
         />
       ) : (
         <ToolbarButton
@@ -75,7 +77,7 @@ export function ConsoleVmActions({ vm }: { vm: Vm }) {
           label="Mount DVD"
           showLabel
           onClick={() => vmActionDialog.open({ kind: 'mount-dvd', vmId: vm.id })}
-          disabled={busy}
+          disabled={busy || !can('mount_dvd')}
         />
       )}
     </>

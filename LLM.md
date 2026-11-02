@@ -644,7 +644,8 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
 - **Greying out** (`features/inventory/rbac/privileges.ts`): `usePrivileges(objKey)`,
   `useCan(priv, objKey)`, `useGlobalCan(priv)`, `useKeysWith(priv, keys)`; VM
   actions look their privilege up in the catalog's `vmActions`
-  (`useVmActionPrivileges`). Each object is its own query
+  (`useVmActionPrivileges`; `useVmActionCan(vmId)(action)` for one VM,
+  `useVmsAllowedTo(action, vmIds)` for a list). Each object is its own query
   (`['me','privileges',objKey]`), but the keys of one tick go out as one
   `GET /me/privileges`. Missing privilege ⇒ the item is disabled (greyed, no
   reason label); while loading it is disabled too. What it gates:
@@ -653,6 +654,11 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
     (`vm.create` on the host too), Force unlock (`task.cancel`), Remove from
     Inventory (`vm.delete`), Console tab and Summary console buttons
     (`vm.console`), Assign Tag / remove chip (`vm.config`);
+  - VM panels, by `vmActions` too: Summary Edit Notes (`notes_edit`) / Edit
+    Network / Edit Disks (`edit`), Snapshots Create / Restore / Remove, the
+    console toolbar's power and Mount / Eject DVD buttons, Startup Ordering
+    Edit (`startup_change`, per row), and the VM grid's batch power buttons
+    (every selected VM must allow the action);
   - host: Pause / Resume Node and Restart (`host.maintenance`), Console button
     (`host.console`), Update Agent (`host.manage` globally - hidden without it);
   - Cluster Management: Create / Rename / Delete (`cluster.manage` globally);
