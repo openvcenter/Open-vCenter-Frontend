@@ -548,7 +548,7 @@ Always invalidate by prefix: `['vms']`, `['hosts']`, `['tasks']` and so on.
 
 In tables and grids the state is `VmStateLabel` (icon + state name): the VM grid's
 State column, VM Startup Ordering. Host status in tables is `HostStatusLabel`
-(`HostIcon` + Online / Offline): Cluster ▸ Hosts, Host Summary.
+(a coloured dot + label, from `hostStatus`): Cluster ▸ Hosts, Host Summary.
 
 
 A transitional state uses the same icon plus `animate-pulse`.
@@ -612,6 +612,7 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
 | Status bar connection                                   | Connected `text-success` · Disconnected `text-accent`                                                                                     |
 | Console connection dot (`GuacamoleConsole` `STATE_DOT`) | connecting `bg-warning` · connected `bg-success` · disconnected `bg-disabled-text` · error `bg-danger`                                    |
 | Setup Agent "waiting for check-in" dot                  | `bg-warning`, pulsing under `motion-safe`                                                                                                 |
+| Host status dot (`hostStatus` / `HostStatusLabel`)      | Online `bg-success` · Offline `bg-danger` · Awaiting agent (never checked in) `bg-disabled-text`; clustered hosts on the Summary also: Maintenance (node paused) and Joining cluster `bg-warning`, Cluster node down `bg-danger`. List rows (Cluster ▸ Hosts) carry no cluster node state, so only the agent side shows there |
 | Console connecting log (`ConnectLog`)                   | lines `text-console-fg` · finished steps `text-console-muted` with `Check` · cursor `bg-console-fg`                                        |
 | Console display and overlays                            | `bg-console-bg` (overlay `bg-console-bg/80`) · text `text-console-text` · detail `text-console-subtle` · error title `text-console-error` |
 | Metric chart series                                     | `var(--color-chart-1…5)`: CPU 1, memory 2, network rx 3 / tx 4, disk 5                                                                    |

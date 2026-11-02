@@ -133,7 +133,7 @@ export function HostDetail({ hostId }: { hostId: string }) {
                     // covers both
                     {
                       label: "Status",
-                      value: <HostStatusLabel online={h.online} />,
+                      value: <HostStatusLabel host={h} />,
                     },
                     { label: "Cluster", value: clusterName },
                     ...(h.hardware?.cluster?.clustered

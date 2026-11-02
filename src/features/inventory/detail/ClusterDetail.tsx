@@ -73,7 +73,7 @@ export function ClusterDetail({ clusterId }: { clusterId: string }) {
                   <Td>{h.name}</Td>
                   <Td>{h.fqdn ?? "-"}</Td>
                   <Td>
-                    <HostStatusLabel online={h.online} />
+                    <HostStatusLabel host={h} />
                   </Td>
                   <Td>
                     {h.agent.connected
