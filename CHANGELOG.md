@@ -8,6 +8,41 @@ All notable changes to ovc-frontend. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-02
+
+### Added
+
+- Role-based access control (needs ovc-backend 0.3.0). Every action is greyed
+  out without its privilege on the object, from one batched
+  `GET /me/privileges` per render; the backend still has the final say.
+- Administration ▸ Roles (create, clone, edit privileges; built-in roles are
+  read-only) and Administration ▸ Global Permissions.
+- A Permissions tab on clusters, hosts, folders and VMs: direct and inherited
+  permissions, Add / Edit / Remove for a group, and an Effective Permissions
+  view that shows which permission decides each level.
+- The tree shows a folder or VM whose cluster / host isn't visible at its root,
+  for users granted only part of the inventory.
+- Rename Folder, in the folder header and the Action menu.
+- Host status is a coloured dot: online, offline, awaiting agent, and for
+  cluster nodes maintenance (paused), joining or down.
+
+### Changed
+
+- `OIDC_GROUPS_CLAIM` (default `resource_access.${client_id}.roles`, the
+  Keycloak client roles; `groups` for Keycloak groups, Entra ID, Okta) is where
+  the user's groups are read; it replaces `OIDC_ROLES_CLAIM`. Permissions are
+  granted to these groups, and a user in no group lands on `/access-denied`.
+- Consoles connect by VM / host id: the tunnel asks the backend where to
+  connect, which also checks `vm.console` / `host.console`.
+- Creating, renaming, moving and removing hosts and clusters is greyed out
+  without the privilege granted globally; renaming or deleting a folder needs
+  it on the folder's cluster or host.
+
+### Fixed
+
+- Table rows no longer paint over the sunken border when selected or hovered,
+  and a selected row stays readable under the pointer.
+
 ## [0.4.1] - 2026-11-01
 
 ### Added
@@ -163,7 +198,8 @@ All notable changes to ovc-frontend. The format follows
 
 First public release.
 
-[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.4.1...HEAD
+[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.5.0...HEAD
+[0.5.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.4.1...0.5.0
 [0.4.1]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.4.0...0.4.1
 [0.4.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.3.0...0.4.0
 [0.3.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.2.0...0.3.0
