@@ -11,11 +11,14 @@ import {
 } from "./ManagementDialogs";
 import { AgentManagementDialog } from "./AgentManagementDialog";
 import { TagManagementDialog } from "./TagManagementDialog";
+import { RolesDialog } from "../rbac/RolesDialog";
+import { GlobalPermissionsDialog } from "../rbac/GlobalPermissionsDialog";
 import { CreateVmDialog } from "../create/CreateVmDialog";
 import {
   useCreateFolder,
   useDeleteFolder,
   useMoveVm,
+  useRenameFolder,
   useUpdateHost,
 } from "./mutations";
 
@@ -33,6 +36,10 @@ export function OrganizeDialogs() {
       return <AgentManagementDialog />;
     case "tag-management":
       return <TagManagementDialog />;
+    case "roles":
+      return <RolesDialog />;
+    case "global-permissions":
+      return <GlobalPermissionsDialog />;
     case "new-folder":
       return (
         <NewFolderDialog clusterId={dialog.clusterId} hostId={dialog.hostId} />
@@ -51,6 +58,8 @@ export function OrganizeDialogs() {
       return <MoveVmDialog vmId={dialog.vmId} />;
     case "move-host":
       return <MoveHostDialog hostId={dialog.hostId} />;
+    case "rename-folder":
+      return <RenameFolderDialog folderId={dialog.folderId} />;
     case "delete-folder":
       return <DeleteFolderDialog folderId={dialog.folderId} />;
   }
@@ -223,6 +232,36 @@ function MoveHostDialog({ hostId }: { hostId: string }) {
 }
 
 // ---- Delete folder -------------------------------------------------
+
+function RenameFolderDialog({ folderId }: { folderId: string }) {
+  const folders = useQuery(foldersQuery({}));
+  const folder = folders.data?.find((f) => f.id === folderId);
+  const [name, setName] = React.useState<string | null>(null);
+  const m = useRenameFolder();
+  // start from the current name once the folder list is there
+  const value = name ?? folder?.name ?? "";
+  const changed = !!value.trim() && value.trim() !== folder?.name;
+
+  const submit = () =>
+    changed &&
+    m.mutate({ id: folderId, name: value.trim() }, { onSuccess: organizeDialog.close });
+
+  return (
+    <Dialog
+      title="Rename Folder"
+      onClose={organizeDialog.close}
+      footer={<Footer onOk={submit} okLabel="Rename" okDisabled={!changed || m.isPending} />}
+    >
+      <TextField
+        label="Folder name"
+        autoFocus
+        value={value}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && submit()}
+      />
+    </Dialog>
+  );
+}
 
 function DeleteFolderDialog({ folderId }: { folderId: string }) {
   const folders = useQuery(foldersQuery({}));

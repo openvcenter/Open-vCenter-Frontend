@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getAccessToken } from "~/auth/token.server";
-import { isDevBypass } from "~/auth/bypass";
+import { backendGet, backendToken } from "~/api/backend.server";
 import { demoUnavailable, isDemoEnv } from "~/demo/env";
 import {
   GuacStatus,
@@ -19,8 +18,11 @@ import {
  * contract as Guacamole's GuacamoleHTTPTunnelServlet:
  *
  * - `POST ?connect` - body is the urlencoded connection parameters. Needs a
- *   signed-in session. Opens a guacd connection and answers with the tunnel
- *   UUID plus a `Guacamole-Tunnel-Token` header.
+ *   signed-in session. The target is `vm-id` or `host-id`, never an address:
+ *   the tunnel asks ovc-backend (`GET /vms/:id/console` / `/hosts/:id/console`)
+ *   where to connect, which also checks `vm.console` / `host.console`. Opens a
+ *   guacd connection and answers with the tunnel UUID plus a
+ *   `Guacamole-Tunnel-Token` header.
  * - `GET ?read:<uuid>:<n>` - streams guacd's instructions. The response stays
  *   open until the next read request arrives, then ends with `0.;`.
  * - `POST ?write:<uuid>` - body is instructions forwarded to guacd.
@@ -46,17 +48,56 @@ function tunnelError(err: TunnelError): Response {
   });
 }
 
+const ID_RE = /^[A-Za-z0-9-]{1,64}$/;
+
+interface ConsoleTarget {
+  hostname: string;
+  port: number;
+  vmGuid: string | null;
+}
+
+/** Ask ovc-backend where this VM / host console connects - it checks the
+ *  caller's `vm.console` / `host.console` privilege on the way. */
+async function resolveTarget(
+  p: URLSearchParams,
+  token: string | null,
+): Promise<ConsoleTarget> {
+  const vmId = p.get("vm-id");
+  const hostId = p.get("host-id");
+  const id = vmId ?? hostId;
+  if (!id || !ID_RE.test(id) || (vmId && hostId))
+    throw new TunnelError(GuacStatus.CLIENT_BAD_REQUEST, "Give one vm-id or host-id");
+  let res: Response;
+  try {
+    res = await backendGet(`/${vmId ? "vms" : "hosts"}/${id}/console`, token);
+  } catch {
+    throw new TunnelError(GuacStatus.UPSTREAM_ERROR, "ovc-backend unreachable");
+  }
+  if (res.ok) return (await res.json()) as ConsoleTarget;
+  const message =
+    ((await res.json().catch(() => null)) as { error?: { message?: string } } | null)
+      ?.error?.message ?? `ovc-backend answered ${res.status}`;
+  if (res.status === 401) throw new TunnelError(GuacStatus.CLIENT_UNAUTHORIZED, message);
+  if (res.status === 403) throw new TunnelError(GuacStatus.CLIENT_FORBIDDEN, message);
+  if (res.status === 404 || res.status === 409)
+    throw new TunnelError(GuacStatus.UPSTREAM_NOT_FOUND, message);
+  throw new TunnelError(GuacStatus.UPSTREAM_ERROR, message);
+}
+
 async function connect(request: Request): Promise<Response> {
   if (request.method !== "POST")
     throw new TunnelError(GuacStatus.CLIENT_BAD_REQUEST, "connect needs POST");
-  if (!isDevBypass() && !(await getAccessToken()))
+  const token = await backendToken();
+  if (token === undefined)
     throw new TunnelError(GuacStatus.CLIENT_UNAUTHORIZED, "No valid session");
 
   const p = new URLSearchParams(await request.text());
   const get = (name: string) => p.get(name) || undefined;
-  const hostname = get("hostname");
-  const port = get("port") ?? RDP_PORT;
-  if (!hostname || !HOSTNAME_RE.test(hostname))
+  // address, port and VM GUID come from the backend, never from the browser
+  const target = await resolveTarget(p, token);
+  const hostname = target.hostname;
+  const port = String(target.port);
+  if (!HOSTNAME_RE.test(hostname))
     throw new TunnelError(GuacStatus.CLIENT_BAD_REQUEST, "Invalid hostname");
   // Only the two consoles the app offers: Hyper-V vmconnect and host RDP
   if (port !== HYPERV_CONSOLE_PORT && port !== RDP_PORT)
@@ -69,7 +110,7 @@ async function connect(request: Request): Promise<Response> {
     password: get("password"),
     domain: get("domain"),
     security: get("security"),
-    vmGuid: get("vm-guid"),
+    vmGuid: target.vmGuid ?? undefined,
     width: get("width"),
     height: get("height"),
   });

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { auth } from '~/auth/auth'
+import { getAuth } from '~/auth/auth'
 
 /**
  * better-auth OAuth endpoints (sign-in redirect, OIDC provider callback, sign-out).
@@ -35,7 +35,7 @@ export const Route = createFileRoute('/frontend-api/auth/$')({
       GET: async ({ request }) => {
         let response: Response
         try {
-          response = await auth.handler(request)
+          response = await (await getAuth()).handler(request)
         } catch {
           const headers = clearCookieHeaders()
           headers.set('Location', '/login?error=session_expired')
@@ -57,7 +57,7 @@ export const Route = createFileRoute('/frontend-api/auth/$')({
 
         return response
       },
-      POST: ({ request }) => auth.handler(request),
+      POST: async ({ request }) => (await getAuth()).handler(request),
     },
   },
 })

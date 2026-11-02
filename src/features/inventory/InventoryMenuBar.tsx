@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { MenuBar } from '~/components/win95'
 import type { MenuDef, MenuEntry } from '~/components/win95'
 import { useAuth } from '~/auth'
+import { objKey, useCan, useFolderOwnerKey, usePrivileges } from './rbac/privileges'
 import { THEMES, TREE_BEHAVIORS, useTheme, useTreeBehavior } from '~/preferences'
 import { useInventorySelection } from './selection'
 import { organizeDialog } from './organize/dialogStore'
@@ -21,12 +22,17 @@ export function InventoryMenuBar() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const auth = useAuth()
-  const { isAdmin } = auth
+  const global = usePrivileges('global')
   const [aboutOpen, setAboutOpen] = React.useState(false)
   const [locksOpen, setLocksOpen] = React.useState(false)
   const [eventsOpen, setEventsOpen] = React.useState(false)
   const [authDebugOpen, setAuthDebugOpen] = React.useState(false)
   const { selection, select } = useInventorySelection()
+  const canMoveVm = useCan('vm.config', selection?.kind === 'vm' ? objKey('vm', selection.id) : null)
+  const canManageFolder = useCan(
+    'folder.manage',
+    useFolderOwnerKey(selection?.kind === 'folder' ? selection.id : null),
+  )
   const vmFolders = useVmFolderTargets(selection?.kind === 'vm' ? selection.id : undefined)
   const { theme, setTheme } = useTheme()
   const { treeBehavior, setTreeBehavior } = useTreeBehavior()
@@ -61,18 +67,16 @@ export function InventoryMenuBar() {
           label: 'Hosts Management',
           onSelect: () => organizeDialog.open({ kind: 'host-management' }),
         },
-        ...(isAdmin
-          ? ([
-              {
-                label: 'Agent Management',
-                onSelect: () => organizeDialog.open({ kind: 'agent-management' }),
-              },
-              {
-                label: 'Tag Management',
-                onSelect: () => organizeDialog.open({ kind: 'tag-management' }),
-              },
-            ] as MenuEntry[])
-          : []),
+        {
+          label: 'Agent Management',
+          disabled: !global.can('host.manage'),
+          onSelect: () => organizeDialog.open({ kind: 'agent-management' }),
+        },
+        {
+          label: 'Tag Management',
+          disabled: !global.can('tag.manage'),
+          onSelect: () => organizeDialog.open({ kind: 'tag-management' }),
+        },
         { type: 'separator' },
         { label: 'Refresh', shortcut: 'F5', onSelect: () => queryClient.invalidateQueries() },
         { type: 'separator' },
@@ -91,21 +95,30 @@ export function InventoryMenuBar() {
         {
           label: 'Move VM to Folder',
           disabled:
-            selection?.kind !== 'vm' || (vmFolders.ready && vmFolders.targets.length === 0),
+            selection?.kind !== 'vm' ||
+            !canMoveVm ||
+            (vmFolders.ready && vmFolders.targets.length === 0),
           onSelect: () =>
             selection?.kind === 'vm' &&
             organizeDialog.open({ kind: 'move-vm', vmId: selection.id }),
         },
         {
           label: 'Move Host',
-          disabled: selection?.kind !== 'host',
+          disabled: selection?.kind !== 'host' || !global.can('host.manage'),
           onSelect: () =>
             selection?.kind === 'host' &&
             organizeDialog.open({ kind: 'move-host', hostId: selection.id }),
         },
         {
+          label: 'Rename Folder',
+          disabled: selection?.kind !== 'folder' || !canManageFolder,
+          onSelect: () =>
+            selection?.kind === 'folder' &&
+            organizeDialog.open({ kind: 'rename-folder', folderId: selection.id }),
+        },
+        {
           label: 'Delete Folder',
-          disabled: selection?.kind !== 'folder',
+          disabled: selection?.kind !== 'folder' || !canManageFolder,
           onSelect: () =>
             selection?.kind === 'folder' &&
             organizeDialog.open({ kind: 'delete-folder', folderId: selection.id }),
@@ -116,13 +129,32 @@ export function InventoryMenuBar() {
       label: 'View',
       items: [
         { label: 'Refresh', onSelect: () => queryClient.invalidateQueries() },
-        ...(isAdmin
-          ? ([
-              { type: 'separator' },
-              { label: 'Events History', onSelect: () => setEventsOpen(true) },
-              { label: 'VM Locks', onSelect: () => setLocksOpen(true) },
-            ] as MenuEntry[])
-          : []),
+        { type: 'separator' },
+        {
+          label: 'Events History',
+          disabled: !global.can('audit.read'),
+          onSelect: () => setEventsOpen(true),
+        },
+        {
+          label: 'VM Locks',
+          disabled: !global.can('task.cancel'),
+          onSelect: () => setLocksOpen(true),
+        },
+      ],
+    },
+    {
+      label: 'Administration',
+      items: [
+        {
+          label: 'Roles',
+          disabled: !global.can('rbac.manage'),
+          onSelect: () => organizeDialog.open({ kind: 'roles' }),
+        },
+        {
+          label: 'Global Permissions',
+          disabled: !global.can('rbac.manage'),
+          onSelect: () => organizeDialog.open({ kind: 'global-permissions' }),
+        },
       ],
     },
     {
@@ -163,7 +195,7 @@ export function InventoryMenuBar() {
   return (
     <>
       <MenuBar menus={menus} />
-      {isAdmin && eventsOpen ? (
+      {eventsOpen ? (
         <EventsHistoryDialog onClose={() => setEventsOpen(false)} />
       ) : null}
       {locksOpen ? <VmLocksDialog onClose={() => setLocksOpen(false)} /> : null}

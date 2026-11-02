@@ -1,7 +1,14 @@
 import * as React from "react";
 import { cn } from "./bevel";
 
-/** Static, non-virtualised table for short lists inside detail panels. */
+/**
+ * Static, non-virtualised table for short lists inside detail panels.
+ *
+ * The sunken bevel is an inset shadow, which content paints over - so it sits
+ * on an outer box padded by the bevel width, and the table scrolls in an inner
+ * box. Selected / hovered rows then stay inside the border. `wrapperClassName`
+ * sizes the outer box (`h-…` / `max-h-…`).
+ */
 export function Table({
   className,
   wrapperClassName,
@@ -11,12 +18,14 @@ export function Table({
 }) {
   return (
     <div
-      className={cn("bevel-sunken bg-window overflow-auto", wrapperClassName)}
+      className={cn("bevel-sunken bg-window flex flex-col p-[2px]", wrapperClassName)}
     >
-      <table
-        className={cn("w-full border-collapse text-base", className)}
-        {...props}
-      />
+      <div className="min-h-0 flex-1 overflow-auto">
+        <table
+          className={cn("w-full border-collapse text-base", className)}
+          {...props}
+        />
+      </div>
     </div>
   );
 }
@@ -46,7 +55,8 @@ export function Td({
 
 /**
  * A row that opens something (a host, a VM, a template). It takes focus in Tab
- * order and opens on Enter or Space, not only on click.
+ * order and opens on Enter or Space, not only on click. Pass `aria-selected` to
+ * mark the current row: it keeps the selection colours, also under hover/focus.
  */
 export function ActionRow({
   onActivate,
@@ -64,7 +74,9 @@ export function ActionRow({
         }
       }}
       className={cn(
-        "cursor-default hover:bg-surface-2 focus-visible:bg-surface-2",
+        "cursor-default",
+        "aria-selected:bg-selection aria-selected:text-selection-text",
+        "not-aria-selected:hover:bg-surface-2 not-aria-selected:focus-visible:bg-surface-2",
         className,
       )}
       {...props}

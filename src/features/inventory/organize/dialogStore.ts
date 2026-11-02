@@ -5,6 +5,8 @@ export type OrganizeDialog =
   | { kind: 'host-management' }
   | { kind: 'agent-management' }
   | { kind: 'tag-management' }
+  | { kind: 'roles' }
+  | { kind: 'global-permissions' }
   | { kind: 'new-folder'; clusterId?: string; hostId?: string }
   | {
       kind: 'new-vm'
@@ -19,6 +21,7 @@ export type OrganizeDialog =
     }
   | { kind: 'move-vm'; vmId: string }
   | { kind: 'move-host'; hostId: string }
+  | { kind: 'rename-folder'; folderId: string }
   | { kind: 'delete-folder'; folderId: string }
   | null
 

@@ -1,4 +1,4 @@
-import { ADMIN_ROLE } from "~/auth/roles";
+import { ADMIN_GROUP } from "~/auth/groups";
 import type { AuthUser } from "~/auth/types";
 import { DEMO_USER_EMAIL } from "./mode";
 
@@ -36,7 +36,7 @@ export const DEMO_USER: AuthUser = {
   id: "demo-admin",
   email: DEMO_USER_EMAIL,
   displayName: "Demo Administrator",
-  roles: [ADMIN_ROLE],
+  groups: [ADMIN_GROUP],
 };
 
 /** The JSON body a server route answers with while demo mode is on. */

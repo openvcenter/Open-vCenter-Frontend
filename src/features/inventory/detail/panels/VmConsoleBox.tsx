@@ -8,6 +8,7 @@ import { isDemoMode } from "~/demo/mode";
 import { dateTime, relTime } from "../../format";
 import { downloadVmConsoleRdpFile } from "./rdpFile";
 import { vmConsoleStateBlock, vmConsoleTabUrl } from "./webrdp";
+import { objKey, useCan } from "../../rbac/privileges";
 
 /**
  * Summary tab "Console" box: the last console thumbnail the agent captured,
@@ -26,6 +27,7 @@ export function VmConsoleBox({
   className?: string;
 }) {
   const off = vm.state === "Off";
+  const canConsole = useCan("vm.console", objKey("vm", vm.id));
   const thumb = useQuery({ ...vmThumbnailQuery(vm.id, vm.lastSeen), enabled: !off });
   const blob = off ? undefined : thumb.data?.blob;
   const [src, setSrc] = React.useState<string | null>(null);
@@ -80,7 +82,7 @@ export function VmConsoleBox({
         <div className="flex flex-wrap justify-center gap-2">
           <Button
             icon={ExternalLink}
-            disabled={!!unavailable}
+            disabled={!!unavailable || !canConsole}
             title={unavailable ?? "Open the HTML5 console in a new tab"}
             onClick={() =>
               window.open(vmConsoleTabUrl(vm.id), "_blank", "noopener")
@@ -92,10 +94,8 @@ export function VmConsoleBox({
           {isDemoMode() ? null : (
             <Button
               icon={Download}
-              disabled={!!unavailable}
-              title={
-                unavailable ?? "Download a .rdp file for the Windows client"
-              }
+              disabled={!!unavailable || !canConsole}
+              title={unavailable ?? "Download a .rdp file for the Windows client"}
               onClick={() =>
                 consoleAddr && downloadVmConsoleRdpFile(vm, consoleAddr)
               }

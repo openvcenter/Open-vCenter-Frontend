@@ -11,7 +11,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Icon } from "~/components/win95";
 import { TRANSITIONAL_VM_STATES } from "~/api/types";
-import type { VmState } from "~/api/types";
+import type { Host, HostDetail, VmState } from "~/api/types";
 
 export function ClusterIcon() {
   return <Icon icon={Layers} size={16} className="text-accent" />;
@@ -77,16 +77,36 @@ export function VmStateLabel({ state }: { state: VmState }) {
   );
 }
 
-/** A host's agent status as the server icon plus Online / Offline. */
-export function HostStatusLabel({ online }: { online: boolean }) {
+type HostStatus = { label: string; dot: string };
+
+/**
+ * One status for a host, from its agent connection and (clustered hosts) its
+ * Failover Cluster node state - the HostDetail adds `hardware`, the list rows
+ * don't, so those show only the agent side.
+ */
+export function hostStatus(host: Host | HostDetail): HostStatus {
+  if (!host.agent.lastSeen) return { label: "Awaiting agent", dot: "bg-disabled-text" };
+  if (!host.online) return { label: "Offline", dot: "bg-danger" };
+  const cluster = "hardware" in host ? host.hardware?.cluster : undefined;
+  switch (cluster?.clustered ? cluster.state : "") {
+    case "Paused":
+      return { label: "Maintenance (node paused)", dot: "bg-warning" };
+    case "Joining":
+      return { label: "Joining cluster", dot: "bg-warning" };
+    case "Down":
+      return { label: "Cluster node down", dot: "bg-danger" };
+    default:
+      return { label: "Online", dot: "bg-success" };
+  }
+}
+
+/** A host's status as a coloured dot plus its label (see `hostStatus`). */
+export function HostStatusLabel({ host }: { host: Host | HostDetail }) {
+  const { label, dot } = hostStatus(host);
   return (
-    <span className="inline-flex items-center gap-1 whitespace-nowrap">
-      <Icon
-        icon={online ? Server : ServerOff}
-        size={13}
-        className={online ? "text-fg" : "text-disabled-text"}
-      />
-      {online ? "Online" : "Offline"}
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span aria-hidden className={`inline-block h-2 w-2 shrink-0 rounded-full ${dot}`} />
+      {label}
     </span>
   );
 }

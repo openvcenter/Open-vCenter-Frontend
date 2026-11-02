@@ -1,6 +1,15 @@
 import type { AgentBinary, AuditEvent, AuditTargetType, Folder, TagCategory, Vlan } from "~/api/types";
 import { DEMO_USER_EMAIL } from "./mode";
-import type { DemoCluster, DemoHost, DemoState, DemoTag, DemoTask, DemoVm } from "./model";
+import type {
+  DemoCluster,
+  DemoHost,
+  DemoPermission,
+  DemoRole,
+  DemoState,
+  DemoTag,
+  DemoTask,
+  DemoVm,
+} from "./model";
 import { uuid } from "./random";
 
 /**
@@ -76,6 +85,22 @@ export const binaryTarget = (b: AgentBinary): AuditTarget => ({
   name: b.version,
   hostId: null,
   clusterId: null,
+});
+
+export const roleTarget = (r: DemoRole): AuditTarget => ({
+  type: "role",
+  id: r.id,
+  name: r.name,
+  hostId: null,
+  clusterId: null,
+});
+/** On a host / cluster it shows in that object's Events tab, like the backend. */
+export const permissionTarget = (p: DemoPermission): AuditTarget => ({
+  type: "permission",
+  id: p.id,
+  name: p.group,
+  hostId: p.scopeType === "host" ? p.scopeId : null,
+  clusterId: p.scopeType === "cluster" ? p.scopeId : null,
 });
 
 /** Record one event by the demo user (or `actor: null` = a system event). */

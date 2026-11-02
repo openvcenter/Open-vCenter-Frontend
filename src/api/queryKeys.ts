@@ -41,6 +41,19 @@ export const qk = {
   templates: () => ['templates'] as const,
   isos: () => ['isos'] as const,
 
+  me: () => ['me'] as const,
+  rbacCatalog: () => ['rbac', 'catalog'] as const,
+  roles: () => ['rbac', 'roles'] as const,
+  permissions: (scopeType: string, scopeId: string | null) =>
+    ['rbac', 'permissions', scopeType, scopeId] as const,
+  groups: (q: string) => ['rbac', 'groups', q] as const,
+  effective: (group: string, object: string) =>
+    ['rbac', 'effective', group, object] as const,
+  /** One object's privileges; under `me` so RBAC changes refresh them. */
+  myPrivileges: (objKey: string) => ['me', 'privileges', objKey] as const,
+  vmConsole: (id: string) => ['vms', id, 'console'] as const,
+  hostConsole: (id: string) => ['hosts', id, 'console'] as const,
+
   agentBinaries: () => ['agent-binaries'] as const,
   agentStorage: () => ['agent-binaries', 'storage'] as const,
 }

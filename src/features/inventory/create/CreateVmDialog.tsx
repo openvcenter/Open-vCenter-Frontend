@@ -27,6 +27,7 @@ import {
   storageKey,
   vmStorageTargets,
 } from "../detail/vmActions/storage";
+import { objKey, useKeysWith } from "../rbac/privileges";
 import { useCloneVm, useCreateVlan, useCreateVm } from "../organize/mutations";
 
 type Mode = "new" | "template" | "clone";
@@ -200,6 +201,12 @@ export function CreateVmDialog({
       : undefined;
   const sourceName = sourceVm?.name ?? sourceTemplate?.name ?? "";
 
+  // only hosts the caller may create VMs on are offered
+  const creatable = useKeysWith(
+    "vm.create",
+    (hosts.data ?? []).map((h) => objKey("host", h.id)),
+  );
+
   // Hosts a template can be deployed to: its own host, plus its cluster's members.
   const templateHost = sourceTemplate
     ? (hosts.data ?? []).find((h) => h.id === sourceTemplate.hostId)
@@ -208,17 +215,20 @@ export function CreateVmDialog({
     if (!sourceTemplate) return [];
     const pool = (hosts.data ?? []).filter(
       (h) =>
-        h.id === sourceTemplate.hostId ||
-        (templateHost?.clusterId && h.clusterId === templateHost.clusterId),
+        (h.id === sourceTemplate.hostId ||
+          (templateHost?.clusterId && h.clusterId === templateHost.clusterId)) &&
+        creatable.has(objKey("host", h.id)),
     );
     return pool.map((h) => ({ value: h.id, label: h.name }));
-  }, [sourceTemplate, hosts.data, templateHost?.clusterId]);
+  }, [sourceTemplate, hosts.data, templateHost?.clusterId, creatable]);
 
   // Candidate hosts for a brand-new VM: pinned host, else a cluster's members,
   // else everything.
   const newHostOptions = React.useMemo(() => {
     const all = hosts.data ?? [];
-    const pool = clusterId ? all.filter((h) => h.clusterId === clusterId) : all;
+    const pool = (clusterId ? all.filter((h) => h.clusterId === clusterId) : all).filter(
+      (h) => creatable.has(objKey("host", h.id)),
+    );
     const runningOn = (hid: string) =>
       (vms.data ?? []).filter((v) => v.hostId === hid && v.state === "Running")
         .length;
@@ -229,7 +239,7 @@ export function CreateVmDialog({
         value: h.id,
         label: `${h.name} - ${runningOn(h.id)} running`,
       }));
-  }, [hosts.data, vms.data, clusterId]);
+  }, [hosts.data, vms.data, clusterId, creatable]);
 
   // Default / constrain the host per mode.
   React.useEffect(() => {

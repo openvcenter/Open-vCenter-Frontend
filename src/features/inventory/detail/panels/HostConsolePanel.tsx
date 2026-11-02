@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Button,
   ClientOnly,
@@ -6,6 +7,7 @@ import {
   TextField,
 } from "~/components/win95";
 import type { Host } from "~/api/types";
+import { hostConsoleQuery } from "~/api/queries";
 import { GuacamoleConsole } from "./GuacamoleConsole";
 import { TUNNEL_URL } from "./webrdp";
 import { ConsoleUnavailable, DEMO_CONSOLE_MESSAGE } from "./ConsoleUnavailable";
@@ -24,11 +26,19 @@ export function HostConsolePanel({ host }: { host: Host }) {
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
 
-  const addr = host.fqdn ?? host.ipAddress ?? null;
-  if (isDemoMode()) return <ConsoleUnavailable message={DEMO_CONSOLE_MESSAGE} />;
+  // where it connects - also the `host.console` check (403 without it)
+  const demo = isDemoMode();
+  const target = useQuery({ ...hostConsoleQuery(host.id), enabled: !demo });
+  if (demo) return <ConsoleUnavailable message={DEMO_CONSOLE_MESSAGE} />;
+  if (target.isPending) {
+    return <div className="p-3 text-disabled-text">Loading console…</div>;
+  }
+  const addr = target.data?.hostname ?? null;
   if (!addr) {
     return (
-      <ConsoleUnavailable message="Console unavailable - the host agent has not reported an address yet." />
+      <ConsoleUnavailable
+        message={`Console unavailable - ${target.error?.message ?? "no address"}.`}
+      />
     );
   }
 
@@ -41,6 +51,7 @@ export function HostConsolePanel({ host }: { host: Host }) {
       >
         <GuacamoleConsole
           tunnelUrl={TUNNEL_URL}
+          target={{ hostId: host.id }}
           hostname={addr}
           port="3389"
           security="any"

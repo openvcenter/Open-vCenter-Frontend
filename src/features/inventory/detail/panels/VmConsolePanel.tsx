@@ -7,7 +7,7 @@ import {
   TextField,
 } from "~/components/win95";
 import type { Vm } from "~/api/types";
-import { hostQuery } from "~/api/queries";
+import { vmConsoleQuery } from "~/api/queries";
 import { GuacamoleConsole } from "./GuacamoleConsole";
 import { ConsoleVmActions } from "./ConsoleVmActions";
 import { ConsoleUnavailable, DEMO_CONSOLE_MESSAGE } from "./ConsoleUnavailable";
@@ -26,7 +26,9 @@ export function VmConsolePanel({
   vm: Vm;
   standalone?: boolean;
 }) {
-  const host = useQuery(hostQuery(vm.hostId));
+  // where it connects - also the `vm.console` check (403 without it)
+  const demo = isDemoMode();
+  const target = useQuery({ ...vmConsoleQuery(vm.id), enabled: !!vm.vmUuid && !demo });
   const [session, setSession] = React.useState<{
     username: string;
     password: string;
@@ -34,25 +36,24 @@ export function VmConsolePanel({
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
 
-  if (isDemoMode()) return <ConsoleUnavailable message={DEMO_CONSOLE_MESSAGE} />;
+  if (demo) return <ConsoleUnavailable message={DEMO_CONSOLE_MESSAGE} />;
 
-  if (!host.data && !host.isError) {
-    return <div className="p-3 text-disabled-text">Loading host…</div>;
+  if (vm.vmUuid && !target.data && !target.isError) {
+    return <div className="p-3 text-disabled-text">Loading console…</div>;
   }
 
-  const fqdn = host.data?.fqdn ?? host.data?.ipAddress ?? null;
+  const fqdn = target.data?.hostname ?? null;
   if (!fqdn || !vm.vmUuid) {
     return (
       <ConsoleUnavailable
         message={
           !vm.vmUuid
             ? "Console unavailable - waiting for the host agent to report this VM."
-            : "Console unavailable - the host agent has not reported an address yet."
+            : `Console unavailable - ${target.error?.message ?? "no address"}.`
         }
       />
     );
   }
-  const vmGuid = vm.vmUuid;
 
   if (session) {
     return (
@@ -63,9 +64,9 @@ export function VmConsolePanel({
       >
         <GuacamoleConsole
           tunnelUrl={TUNNEL_URL}
+          target={{ vmId: vm.id }}
           hostname={fqdn}
           port="2179"
-          vmGuid={vmGuid}
           vmName={vm.name}
           username={session.username}
           password={session.password}

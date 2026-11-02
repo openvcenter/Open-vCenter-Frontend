@@ -54,7 +54,7 @@ guacamole-common-js · react-resizable-panels **v3** (pinned).
   dialog), `detail/` (per-entity views, `VmActionsBar`, `HostActionsMenu`,
   `vmActions/`, `panels/`), `organize/` (dialogs, mutations, folder scope),
   `create/` (VM wizard), `actions/` (power, tasks, status bar), `tasks/`, `locks/`,
-  `events/` (audit log, admin).
+  `events/` (audit log), `rbac/` (privilege hooks, Roles, Permissions tab).
 - `src/components/win95/`: UI primitives. `src/auth/`: all auth logic.
   `src/preferences/`: theme + tree behaviour cookies. `src/styles/`: tokens + themes.
 - `src/demo/`: demo mode. `api.ts` (simulated endpoints), `sim.ts` (tasks + agent
@@ -91,8 +91,10 @@ guacamole-common-js · react-resizable-panels **v3** (pinned).
   `react-resizable-panels` to v4.
 - **Guards `redirect()`; they never throw.** ag-grid and Guacamole are client-only
   (`<ClientOnly>`, lazy import).
-- **RBAC is server-side.** Never send an identity or scope. Admin-only UI is gated by
-  `useAuth().isAdmin`.
+- **RBAC is server-side.** Never send an identity or scope. Gate UI by privilege with
+  `useCan(priv, objKey)` / `useGlobalCan` / `usePrivileges` (`rbac/privileges.ts`),
+  greying the item out, never by `useAuth().isAdmin`. A new VM action takes its
+  privilege from the catalog's `vmActions` (`useVmActionPrivileges`).
 
 ## How operations work
 
@@ -125,7 +127,8 @@ guacamole-common-js · react-resizable-panels **v3** (pinned).
   files" checkbox (`?remove_files=true`).
 - **Locked VM** (`vm.lock`) or **offline host** (its VMs read `Unknown`, and the
   backend answers `409`): every VM action is disabled. The exceptions are
-  admin-only "Force unlock" and DB-only "Remove from Inventory" (offline host only).
+  "Force unlock" (`task.cancel`) and DB-only "Remove from Inventory" (offline host
+  only, `vm.delete`).
 - **Off-only**: Rename, Clone, Export as Template, and most Edit VM settings (CPU,
   memory, nested virtualization, Secure Boot, auto-stop). AutoStart and notes are
   always editable.
@@ -139,31 +142,40 @@ guacamole-common-js · react-resizable-panels **v3** (pinned).
 - **Folders**: flat, scoped to one cluster or one standalone host. A VM only moves
   into folders of its host's scope. Deleting a folder detaches its VMs; changing a
   host's cluster clears its VMs' folders. Only an **empty** cluster can be deleted.
-- **Tags**: a global catalog that only admins manage (File ▸ Tag Management). A tag
+- **Tags**: a global catalog managed with `tag.manage` (File ▸ Tag Management). A tag
   is standalone or in one category, and a VM holds **at most one tag per category**.
   Names are `[A-Za-z0-9_-]{1,64}`, unique per category (case-insensitive). Each tag
   has a colour from a fixed 10-name palette (tokens `--color-tag-<name>` / `-fg`;
   render it through `organize/TagChip.tsx`). Deleting a tag removes it from its VMs;
-  deleting a category also deletes its tags. Anyone who can see a VM can tag it
-  (Summary ▸ Tags ▸ Assign Tag…), even while it is locked.
+  deleting a category also deletes its tags. Tagging a VM needs `vm.config` on it
+  (Summary ▸ Tags ▸ Assign Tag…), and works even while it is locked.
 - **VM wizard**:
   - names: `[A-Za-z0-9_-]+`; disk names: 1–6 alphanumerics;
   - memory: ≥ 256 MB, and dynamic memory needs 1 GB ≤ min ≤ startup ≤ max;
   - clone sources must be Off with a `vmUuid`;
   - a template deploys to its own host or to that host's cluster;
   - HA is offered only on a clustered host.
-- **Host actions**: Pause/Resume Node and Restart Host are admin-only. Restart is
-  blocked while VMs run or while a cluster node isn't Paused. A host whose agent has
-  never checked in shows only the "Setup Agent" tab (plus "Events" for an admin).
-- **Audit log** (admin only): View ▸ Events History and an **Events** tab on
+- **Host actions**: Pause/Resume Node and Restart Host need `host.maintenance`.
+  Restart is blocked while VMs run or while a cluster node isn't Paused. A host
+  whose agent has never checked in shows only the "Setup Agent" tab (plus Events /
+  Permissions when allowed).
+- **Access control**: privileges → roles → permissions granted to identity-provider
+  groups (never users; read at `OIDC_GROUPS_CLAIM`) on global, clusters, hosts, folders and VMs. Lists
+  show only granted objects - a folder or VM without a visible parent sits at the
+  tree root. The `ADMINISTRATOR` group is a superuser. Administration ▸ Roles / Global
+  Permissions and a **Permissions** tab per object need `rbac.manage`. Login needs
+  at least one group (`/access-denied` otherwise).
+- **Audit log** (`audit.read`): View ▸ Events History and an **Events** tab on
   clusters, hosts and VMs (`GET /audit-events`, cursor-paged). Every successful
-  mutation invalidates `['audit-events']` (router `MutationCache`).
-- **Consoles**: the VM console needs the host online, a host FQDN/IP and the VM's
-  `vmUuid` (Guacamole port 2179, `security=vmconnect`), and is unavailable while the
-  VM is Off or Paused (Console tab greyed out, Summary console buttons disabled);
-  the host console uses RDP on 3389. The tunnel always disables audio, drive /
-  file transfer and printing, accepts only ports 2179 / 3389, and keeps tunnels in
-  process memory (one replica or sticky sessions).
+  mutation invalidates `['audit-events']` and `['me']` (router `MutationCache`).
+- **Consoles**: the VM console needs `vm.console`, the host online, a host FQDN/IP
+  and the VM's `vmUuid` (Guacamole port 2179, `security=vmconnect`), and is
+  unavailable while the VM is Off or Paused (Console tab greyed out, Summary console
+  buttons disabled); the host console needs `host.console` and uses RDP on 3389.
+  The browser sends only `vm-id` / `host-id`: the tunnel asks the backend
+  (`GET /vms|hosts/:id/console`) for the address. The tunnel always disables audio,
+  drive / file transfer and printing, accepts only ports 2179 / 3389, and keeps
+  tunnels in process memory (one replica or sticky sessions).
 
 ## Keep docs in sync (always, no need to ask)
 

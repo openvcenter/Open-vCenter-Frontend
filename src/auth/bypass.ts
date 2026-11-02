@@ -1,9 +1,9 @@
-import { ADMIN_ROLE } from "./roles";
+import { ADMIN_GROUP } from "./groups";
 import type { AuthUser } from "./types";
 
 /**
  * No-auth bypass. When `OVC_AUTH_MODE=stub`, every request is treated as a
- * fixed `ADMINISTRATOR` user and no OIDC provider is contacted. Server-only -
+ * fixed user in the `ADMINISTRATOR` group and no OIDC provider is contacted. Server-only -
  * imported by `server.ts`, `token.server.ts` and the `/frontend-api/api`
  * proxy, never by client code.
  *
@@ -30,5 +30,5 @@ export const DEV_BYPASS_USER: AuthUser = {
   id: "debug-admin",
   email: "admin@ovc.debug.app",
   displayName: "Debug Admin",
-  roles: [ADMIN_ROLE],
+  groups: [ADMIN_GROUP],
 };

@@ -40,8 +40,13 @@ export function getRouter() {
     queryCache: new QueryCache({ onError: handleApiError }),
     mutationCache: new MutationCache({
       onError: handleApiError,
-      // every successful write lands in the audit log - refresh any open view of it
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.auditEventsAll() }),
+      // every successful write lands in the audit log - refresh any open view of
+      // it; a write can also move objects or change permissions, so re-check
+      // the caller's privileges too
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: qk.auditEventsAll() })
+        void queryClient.invalidateQueries({ queryKey: qk.me() })
+      },
     }),
   })
 

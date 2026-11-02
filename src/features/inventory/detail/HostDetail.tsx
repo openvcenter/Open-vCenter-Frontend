@@ -10,7 +10,9 @@ import {
   hostsQuery,
 } from "~/api/queries";
 import { HYPERVISOR_LABEL } from "~/api/types";
-import { useAuth } from "~/auth";
+import { objKey, usePrivileges } from "../rbac/privileges";
+import { privilegedTabs } from "../rbac/objectTabs";
+import { PermissionsPanel } from "../rbac/PermissionsPanel";
 import { HostIcon, HostStatusLabel } from "../tree/nodeIcons";
 import { useInventorySelection } from "../selection";
 import { relTime } from "../format";
@@ -36,8 +38,6 @@ const CONNECTED_TABS: TabItem[] = [
 
 // The only tab before that - everything else would be empty anyway.
 const SETUP_TABS: TabItem[] = [{ id: "setup", label: "Setup Agent" }];
-// admin only, appended to either set - the audit log (also who added the host)
-const EVENTS_TAB: TabItem = { id: "events", label: "Events" };
 
 export function HostDetail({ hostId }: { hostId: string }) {
   const host = useQuery(hostQuery(hostId));
@@ -45,7 +45,7 @@ export function HostDetail({ hostId }: { hostId: string }) {
   const clusters = useQuery(clustersQuery());
   const vms = useQuery(hostVmsQuery(hostId));
   const { tab, setTab } = useInventorySelection();
-  const { isAdmin } = useAuth();
+  const privs = usePrivileges(objKey("host", hostId));
 
   const h = host.data;
 
@@ -75,7 +75,9 @@ export function HostDetail({ hostId }: { hostId: string }) {
     return <div className="p-3 text-disabled-text">Host unavailable.</div>;
   }
   const baseTabs = agentResponded ? CONNECTED_TABS : SETUP_TABS;
-  const tabs = isAdmin ? [...baseTabs, EVENTS_TAB] : baseTabs;
+  // Events / Permissions are appended to either set (Events also shows who
+  // added the host)
+  const tabs = [...baseTabs, ...privilegedTabs(privs)];
 
   const active =
     tab && tabs.some((t) => t.id === tab)
@@ -102,7 +104,9 @@ export function HostDetail({ hostId }: { hostId: string }) {
             ) : null}
             <Button
               className="min-w-0 px-2"
-              disabled={!h?.online || !(h?.fqdn ?? h?.ipAddress)}
+              disabled={
+                !h?.online || !(h?.fqdn ?? h?.ipAddress) || !privs.can("host.console")
+              }
               title="Open the host's RDP console in a new browser tab"
               onClick={() =>
                 window.open(hostConsoleTabUrl(hostId), "_blank", "noopener")
@@ -129,7 +133,7 @@ export function HostDetail({ hostId }: { hostId: string }) {
                     // covers both
                     {
                       label: "Status",
-                      value: <HostStatusLabel online={h.online} />,
+                      value: <HostStatusLabel host={h} />,
                     },
                     { label: "Cluster", value: clusterName },
                     ...(h.hardware?.cluster?.clustered
@@ -168,6 +172,9 @@ export function HostDetail({ hostId }: { hostId: string }) {
           <HostConfigurationPanel host={h} vms={vms.data ?? []} />
         ) : null}
         {active === "events" ? <EventsPanel hostId={hostId} /> : null}
+        {active === "permissions" ? (
+          <PermissionsPanel scopeType="host" scopeId={hostId} />
+        ) : null}
       </Tabs>
     </div>
   );

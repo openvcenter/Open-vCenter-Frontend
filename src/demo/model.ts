@@ -11,6 +11,7 @@ import type {
   Vlan,
   Vm,
   VmLock,
+  PermissionScopeType,
 } from "~/api/types";
 
 /**
@@ -22,7 +23,7 @@ import type {
  * Bump `DEMO_STATE_VERSION` whenever this shape changes - an older saved state
  * is then discarded and a fresh inventory generated.
  */
-export const DEMO_STATE_VERSION = 5;
+export const DEMO_STATE_VERSION = 6;
 
 export interface DemoVolume {
   path: string;
@@ -134,4 +135,27 @@ export interface DemoState {
   agentBinaries: AgentBinary[];
   /** The audit log, newest first (`demo/audit.ts`). */
   auditEvents: AuditEvent[];
+  /** Access control (`demo/rbac.ts`). */
+  roles: DemoRole[];
+  permissions: DemoPermission[];
+}
+
+/** A role; built-ins (fixed ids) keep their privileges in `demo/rbac.ts`. */
+export interface DemoRole {
+  id: string;
+  name: string;
+  description: string | null;
+  builtin: boolean;
+  privileges: string[];
+}
+
+export interface DemoPermission {
+  id: string;
+  group: string;
+  roleId: string;
+  scopeType: PermissionScopeType;
+  scopeId: string | null;
+  propagate: boolean;
+  createdBy: string;
+  createdAt: string;
 }

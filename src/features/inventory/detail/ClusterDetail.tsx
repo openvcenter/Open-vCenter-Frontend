@@ -2,7 +2,9 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { ActionRow, Table, Tabs, Td, Th } from "~/components/win95";
 import type { TabItem } from "~/components/win95";
 import { clustersQuery, hostVmsQuery, hostsQuery } from "~/api/queries";
-import { useAuth } from "~/auth";
+import { objKey, usePrivileges } from "../rbac/privileges";
+import { privilegedTabs } from "../rbac/objectTabs";
+import { PermissionsPanel } from "../rbac/PermissionsPanel";
 import { ClusterIcon, HostStatusLabel } from "../tree/nodeIcons";
 import { useInventorySelection } from "../selection";
 import { relTime } from "../format";
@@ -16,15 +18,13 @@ const TABS: TabItem[] = [
   { id: "startup", label: "VM Startup Ordering" },
   { id: "vnets", label: "Virtual Networks" },
 ];
-// admin only - the audit log
-const EVENTS_TAB: TabItem = { id: "events", label: "Events" };
 
 export function ClusterDetail({ clusterId }: { clusterId: string }) {
   const clusters = useQuery(clustersQuery());
   const hosts = useQuery(hostsQuery());
   const { select, tab, setTab } = useInventorySelection();
-  const { isAdmin } = useAuth();
-  const tabs = isAdmin ? [...TABS, EVENTS_TAB] : TABS;
+  const privs = usePrivileges(objKey("cluster", clusterId));
+  const tabs = [...TABS, ...privilegedTabs(privs)];
   const active = tab && tabs.some((t) => t.id === tab) ? tab : "hosts";
 
   const cluster = clusters.data?.find((c) => c.id === clusterId);
@@ -73,7 +73,7 @@ export function ClusterDetail({ clusterId }: { clusterId: string }) {
                   <Td>{h.name}</Td>
                   <Td>{h.fqdn ?? "-"}</Td>
                   <Td>
-                    <HostStatusLabel online={h.online} />
+                    <HostStatusLabel host={h} />
                   </Td>
                   <Td>
                     {h.agent.connected
@@ -102,6 +102,9 @@ export function ClusterDetail({ clusterId }: { clusterId: string }) {
         ) : null}
         {active === "vnets" ? <VirtualNetworksPanel clusterId={clusterId} /> : null}
         {active === "events" ? <EventsPanel clusterId={clusterId} /> : null}
+        {active === "permissions" ? (
+          <PermissionsPanel scopeType="cluster" scopeId={clusterId} />
+        ) : null}
       </Tabs>
     </div>
   );

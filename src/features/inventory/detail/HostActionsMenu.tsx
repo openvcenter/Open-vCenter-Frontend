@@ -12,7 +12,7 @@ import type { MenuItemDef } from "~/components/win95";
 import { hostAction } from "~/api/endpoints/hosts";
 import type { HostAction } from "~/api/endpoints/hosts";
 import { ApiError } from "~/api/client";
-import { useAuth } from "~/auth";
+import { objKey, useCan } from "../rbac/privileges";
 import type { HostDetail, Vm } from "~/api/types";
 import { activeTasks } from "../actions/activeTasks";
 import { statusMessage } from "../actions/statusMessage";
@@ -32,11 +32,11 @@ const QUEUED: Record<HostAction, string> = {
 /**
  * Host "Actions" menu: inventory refreshes, Failover Cluster node maintenance
  * (Pause / Pause & Drain, Resume / Resume & Failback) and a host restart.
- * Node maintenance and restart are admin-only; the agent re-checks the
+ * Node maintenance and restart need `host.maintenance`; the agent re-checks the
  * preconditions (cluster node, node Paused and no running VMs for a restart).
  */
 export function HostActionsMenu({ host, vms }: { host: HostDetail; vms: Vm[] }) {
-  const { isAdmin } = useAuth();
+  const maintain = useCan("host.maintenance", objKey("host", host.id));
   const qc = useQueryClient();
 
   const m = useMutation({
@@ -54,6 +54,7 @@ export function HostActionsMenu({ host, vms }: { host: HostDetail; vms: Vm[] }) 
   const nodeState = host.hardware?.cluster?.state ?? "";
   const running = vms.filter((v) => v.state === "Running").length;
   const disabled = !host.agent.connected || m.isPending;
+  const maintDisabled = disabled || !maintain;
 
   const pause = async () => {
     const r = await confirmWithCheckbox({
@@ -123,17 +124,17 @@ export function HostActionsMenu({ host, vms }: { host: HostDetail; vms: Vm[] }) 
       onSelect: () => m.mutate("refresh_inventory"),
     },
   ];
-  if (isAdmin) {
+  {
     items.push({ type: "separator" });
     if (clustered) {
       items.push(
         nodeState === "Paused"
-          ? { label: "Resume Node", icon: Play, disabled, onSelect: resume }
+          ? { label: "Resume Node", icon: Play, disabled: maintDisabled, onSelect: resume }
           : {
               label: "Pause Node",
               icon: Pause,
               // only an Up node can be paused
-              disabled: disabled || nodeState !== "Up",
+              disabled: maintDisabled || nodeState !== "Up",
               onSelect: pause,
             },
       );
@@ -145,7 +146,7 @@ export function HostActionsMenu({ host, vms }: { host: HostDetail; vms: Vm[] }) 
       icon: Power,
       danger: true,
       disabled:
-        disabled || running > 0 || (clustered && nodeState !== "Paused"),
+        maintDisabled || running > 0 || (clustered && nodeState !== "Paused"),
       onSelect: restart,
     });
   }

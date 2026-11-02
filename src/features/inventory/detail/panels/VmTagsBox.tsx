@@ -6,16 +6,18 @@ import { useSetVmTags } from "../../organize/mutations";
 import { TagChip } from "../../organize/TagChip";
 import { useTagCatalog } from "../../organize/tags";
 import { AssignTagsDialog } from "./AssignTagsDialog";
+import { objKey, useCan } from "../../rbac/privileges";
 
 /**
  * The VM's tags (Summary tab, beside Notes): coloured chips with a remove ×, and
- * "Assign Tag…" to add more. Any user who can see the VM tags it; a DB-only
+ * "Assign Tag…" to add more. Tagging needs `vm.config` on the VM; a DB-only
  * change, so it stays enabled while the VM is locked or its host is offline.
  */
 export function VmTagsBox({ vm, className }: { vm: Vm; className?: string }) {
   const catalog = useTagCatalog();
   const setTags = useSetVmTags();
   const [assigning, setAssigning] = React.useState(false);
+  const canTag = useCan("vm.config", objKey("vm", vm.id));
 
   // `?? []`: a backend that predates tags omits the field
   const tagIds = vm.tagIds ?? [];
@@ -29,6 +31,7 @@ export function VmTagsBox({ vm, className }: { vm: Vm; className?: string }) {
           <Button
             icon={TagIcon}
             className="min-w-0 px-2"
+            disabled={!canTag}
             onClick={() => setAssigning(true)}
           >
             Assign Tag…
@@ -48,7 +51,7 @@ export function VmTagsBox({ vm, className }: { vm: Vm; className?: string }) {
                 category={
                   t.categoryId ? catalog.categoriesById.get(t.categoryId)?.name : null
                 }
-                removeDisabled={setTags.isPending}
+                removeDisabled={setTags.isPending || !canTag}
                 onRemove={() =>
                   setTags.mutate({
                     vmId: vm.id,

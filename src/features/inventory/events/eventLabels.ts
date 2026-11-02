@@ -69,6 +69,13 @@ const ACTION_LABELS: Record<string, string> = {
   "agent_binary.upload": "Upload Agent Build",
   "agent_binary.update": "Edit Agent Build",
   "agent_binary.delete": "Delete Agent Build",
+  // --- access control ---
+  "role.create": "Create Role",
+  "role.update": "Edit Role",
+  "role.delete": "Delete Role",
+  "permission.create": "Add Permission",
+  "permission.update": "Edit Permission",
+  "permission.delete": "Remove Permission",
 };
 
 export function eventLabel(action: string): string {
@@ -84,6 +91,8 @@ export const TARGET_TYPE_LABEL: Record<AuditTargetType, string> = {
   tag: "Tag",
   tag_category: "Tag Category",
   agent_binary: "Agent Build",
+  role: "Role",
+  permission: "Permission",
 };
 
 export const OUTCOME_TEXT: Record<AuditOutcome, string> = {
@@ -116,6 +125,9 @@ const FIELD_LABELS: Record<string, string> = {
   color: "Color",
   notes: "Notes",
   isActive: "Active",
+  role: "Role",
+  propagate: "Propagate",
+  privileges: "Privileges",
 };
 
 function formatValue(v: unknown): string {

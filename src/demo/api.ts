@@ -22,11 +22,24 @@ import {
   folderTarget,
   hostTarget,
   listAuditEvents,
+  permissionTarget,
+  roleTarget,
   tagTarget,
   vlanTarget,
   vmTarget,
 } from "./audit";
 import { DEMO_USER_EMAIL } from "./mode";
+import {
+  ALL_PRIVILEGES,
+  catalog,
+  effective,
+  permissionList,
+  permissionOut,
+  pruneOrphanPermissions,
+  roleOut,
+  rolePrivileges,
+  scopeExists,
+} from "./rbac";
 import type { DemoHost, DemoState, DemoTag, DemoVm } from "./model";
 import { hostMetrics, vmMetrics } from "./metrics";
 import { placementError } from "./paths";
@@ -112,7 +125,11 @@ export async function demoRequest<T>(path: string, opts: RequestOptions = {}): P
       if (v !== undefined && v !== null && v !== "") query[k] = String(v);
     }
     const result = m.handler({ state, now, params: m.params, query, body: opts.body });
-    if (method !== "GET") dirty = true;
+    if (method !== "GET") {
+      dirty = true;
+      // deleting a cluster / host / folder / VM drops its permissions
+      pruneOrphanPermissions(state);
+    }
     return (result === undefined ? undefined : JSON.parse(JSON.stringify(result))) as T;
   } finally {
     if (dirty) saveDemoState();
@@ -1277,4 +1294,227 @@ route("POST", "/agent-binaries/:id/rollout", (ctx) => {
     tasks.push(taskOut(task, now));
   }
   return { tasks, skipped };
+});
+
+// ---- access control (see demo/rbac.ts) ----------------------------------------------
+
+// The demo user is in the ADMINISTRATOR group: a superuser with every privilege.
+route("GET", "/me", () => ({
+  id: "demo-admin",
+  email: DEMO_USER_EMAIL,
+  displayName: "Demo Administrator",
+  groups: ["ADMINISTRATOR"],
+  superuser: true,
+  globalPrivileges: ALL_PRIVILEGES,
+}));
+
+route("GET", "/rbac/catalog", () => catalog());
+
+route("GET", "/me/privileges", ({ state, query }) => {
+  const items: Record<string, string[] | null> = {};
+  for (const k of (query.ids ?? "").split(",").filter(Boolean)) {
+    const [type, id] = k === "global" ? ["global", null] : k.split(":");
+    items[k] = scopeExists(state, { type: type as never, id }) ? ALL_PRIVILEGES : null;
+  }
+  return { items };
+});
+
+const PRIVILEGE_SET = new Set(ALL_PRIVILEGES);
+
+function rolePrivilegesBody(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw.map(String) : [];
+  const unknown = list.filter((p) => !PRIVILEGE_SET.has(p));
+  if (unknown.length) {
+    throw new ApiError(400, "UNKNOWN_PRIVILEGE", `Unknown privilege(s): ${unknown.join(", ")}`, {
+      privileges: unknown,
+    });
+  }
+  return ALL_PRIVILEGES.filter((p) => list.includes(p));
+}
+
+function roleName(state: DemoState, raw: unknown, selfId?: string): string {
+  const name = String(raw ?? "").trim();
+  if (!name) throw validation("The role name cannot be empty");
+  if (state.roles.some((r) => r.id !== selfId && sameName(r.name, name))) {
+    throw conflict("ROLE_EXISTS", `A role named '${name}' already exists`);
+  }
+  return name;
+}
+
+function editableRole(state: DemoState, id: string) {
+  const role = getOr404(state.roles, id, "Role");
+  if (role.builtin) {
+    throw conflict("ROLE_BUILTIN", `'${role.name}' is a built-in role and cannot be changed`);
+  }
+  return role;
+}
+
+route("GET", "/roles", ({ state }) =>
+  [...state.roles]
+    .sort((a, b) => Number(b.builtin) - Number(a.builtin) || a.name.localeCompare(b.name))
+    .map((r) => roleOut(state, r)),
+);
+
+route("POST", "/roles", (ctx) => {
+  const b = body<{ name: string; description: string | null; privileges: string[] }>(ctx);
+  const role = {
+    id: uuid(),
+    name: roleName(ctx.state, b.name),
+    description: b.description?.trim() || null,
+    builtin: false,
+    privileges: rolePrivilegesBody(b.privileges),
+  };
+  ctx.state.roles.push(role);
+  audit(ctx.state, ctx.now, "role.create", roleTarget(role), {
+    details: { privileges: role.privileges },
+  });
+  return roleOut(ctx.state, role);
+});
+
+route("PATCH", "/roles/:id", (ctx) => {
+  const role = editableRole(ctx.state, ctx.params.id);
+  const b = body<{ name: string; description: string | null; privileges: string[] }>(ctx);
+  const before = { name: role.name, description: role.description, privileges: [...role.privileges] };
+  if (b.name !== undefined) role.name = roleName(ctx.state, b.name, role.id);
+  if (b.description !== undefined) role.description = b.description?.trim() || null;
+  if (b.privileges !== undefined) role.privileges = rolePrivilegesBody(b.privileges);
+  const diff = changes(before, {
+    name: role.name,
+    description: role.description,
+    privileges: role.privileges,
+  });
+  if (diff) audit(ctx.state, ctx.now, "role.update", roleTarget(role), { details: diff });
+  return roleOut(ctx.state, role);
+});
+
+route("POST", "/roles/:id/clone", (ctx) => {
+  const source = getOr404(ctx.state.roles, ctx.params.id, "Role");
+  const role = {
+    id: uuid(),
+    name: roleName(ctx.state, body<{ name: string }>(ctx).name),
+    description: source.description,
+    builtin: false,
+    privileges: [...rolePrivileges(source)],
+  };
+  ctx.state.roles.push(role);
+  audit(ctx.state, ctx.now, "role.create", roleTarget(role), {
+    details: { clonedFrom: source.name },
+  });
+  return roleOut(ctx.state, role);
+});
+
+route("DELETE", "/roles/:id", ({ state, params, now }) => {
+  const role = editableRole(state, params.id);
+  const inUse = state.permissions.filter((p) => p.roleId === role.id).length;
+  if (inUse) {
+    throw conflict(
+      "ROLE_IN_USE",
+      `'${role.name}' is used by ${inUse} permission(s) - remove them first`,
+      { permissionCount: inUse },
+    );
+  }
+  audit(state, now, "role.delete", roleTarget(role));
+  state.roles = state.roles.filter((r) => r.id !== role.id);
+});
+
+type ScopeRef = { type: "global" | "cluster" | "host" | "folder" | "vm"; id: string | null };
+const SCOPE_TYPES = new Set(["global", "cluster", "host", "folder", "vm"]);
+
+function scopeRef(state: DemoState, type: unknown, id: unknown): ScopeRef {
+  const t = String(type ?? "");
+  if (!SCOPE_TYPES.has(t)) throw validation(`Invalid scopeType '${t}'`);
+  const ref: ScopeRef = { type: t as ScopeRef["type"], id: t === "global" ? null : String(id ?? "") };
+  if (ref.type !== "global" && !ref.id) throw validation("scopeId is required unless scopeType is global");
+  if (!scopeExists(state, ref)) throw notFound(t.charAt(0).toUpperCase() + t.slice(1));
+  return ref;
+}
+
+route("GET", "/permissions", ({ state, query }) =>
+  permissionList(state, scopeRef(state, query.scopeType, query.scopeId)),
+);
+
+route("POST", "/permissions", (ctx) => {
+  const b = body<{
+    group: string;
+    roleId: string;
+    scopeType: string;
+    scopeId: string | null;
+    propagate: boolean;
+  }>(ctx);
+  const ref = scopeRef(ctx.state, b.scopeType, b.scopeId);
+  const role = getOr404(ctx.state.roles, String(b.roleId ?? ""), "Role");
+  const group = String(b.group ?? "").trim();
+  if (!group) throw validation("group cannot be empty");
+  const existing = ctx.state.permissions.find(
+    (p) => p.group === group && p.scopeType === ref.type && p.scopeId === ref.id,
+  );
+  if (existing) {
+    throw conflict("PERMISSION_EXISTS", `Group '${group}' already has a permission here - edit it`, {
+      permissionId: existing.id,
+    });
+  }
+  const perm = {
+    id: uuid(),
+    group,
+    roleId: role.id,
+    scopeType: ref.type,
+    scopeId: ref.id,
+    propagate: b.propagate ?? true,
+    createdBy: DEMO_USER_EMAIL,
+    createdAt: new Date(ctx.now).toISOString(),
+  };
+  ctx.state.permissions.push(perm);
+  audit(ctx.state, ctx.now, "permission.create", permissionTarget(perm), {
+    details: { role: role.name, scopeType: ref.type, scopeId: ref.id, propagate: perm.propagate },
+  });
+  return permissionOut(ctx.state, perm);
+});
+
+route("PATCH", "/permissions/:id", (ctx) => {
+  const perm = getOr404(ctx.state.permissions, ctx.params.id, "Permission");
+  const b = body<{ roleId: string; propagate: boolean }>(ctx);
+  const roleNameOf = (id: string) => ctx.state.roles.find((r) => r.id === id)?.name ?? null;
+  const before = { role: roleNameOf(perm.roleId), propagate: perm.propagate };
+  if (b.roleId !== undefined) perm.roleId = getOr404(ctx.state.roles, b.roleId, "Role").id;
+  if (typeof b.propagate === "boolean") perm.propagate = b.propagate;
+  const diff = changes(before, { role: roleNameOf(perm.roleId), propagate: perm.propagate });
+  if (diff) audit(ctx.state, ctx.now, "permission.update", permissionTarget(perm), { details: diff });
+  return permissionOut(ctx.state, perm);
+});
+
+route("DELETE", "/permissions/:id", ({ state, params, now }) => {
+  const perm = getOr404(state.permissions, params.id, "Permission");
+  audit(state, now, "permission.delete", permissionTarget(perm), {
+    details: {
+      role: state.roles.find((r) => r.id === perm.roleId)?.name ?? null,
+      scopeType: perm.scopeType,
+      scopeId: perm.scopeId,
+    },
+  });
+  state.permissions = state.permissions.filter((p) => p.id !== perm.id);
+});
+
+route("GET", "/rbac/groups", ({ state, query }) => {
+  const needle = (query.q ?? "").trim().toLowerCase();
+  const known = new Set(["ADMINISTRATOR", ...state.permissions.map((p) => p.group)]);
+  return [...known]
+    .filter((g) => g.toLowerCase().includes(needle))
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+    .slice(0, 50);
+});
+
+route("GET", "/rbac/effective", ({ state, query }) => {
+  const group = (query.group ?? "").trim();
+  if (!group) throw validation("group is required");
+  const object = query.object ?? "global";
+  const [type, id] = object === "global" ? ["global", null] : object.split(":");
+  return effective(state, group, scopeRef(state, type, id));
+});
+
+// Consoles: demo hosts are fictional - the panels say so before asking.
+route("GET", "/vms/:id/console", () => {
+  throw conflict("CONSOLE_UNAVAILABLE", "Consoles are not available in the demo");
+});
+route("GET", "/hosts/:id/console", () => {
+  throw conflict("CONSOLE_UNAVAILABLE", "Consoles are not available in the demo");
 });

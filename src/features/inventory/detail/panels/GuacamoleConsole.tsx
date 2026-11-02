@@ -25,11 +25,13 @@ type Phase = "loading" | "tunnel" | "waiting";
 export interface GuacamoleConsoleProps {
   /** Base URL of the Guacamole HTTP tunnel servlet (…/tunnel). */
   tunnelUrl: string;
+  /** What to connect to. The tunnel asks ovc-backend for the address (and
+   *  checks `vm.console` / `host.console`); the browser never picks it. */
+  target: { vmId: string } | { hostId: string };
+  /** Where it connects (from `GET /vms|hosts/:id/console`) - display only. */
   hostname: string;
-  /** 2179 for the Hyper-V vmconnect (VM) console; 3389 for a host RDP console. */
+  /** 2179 for the Hyper-V vmconnect (VM) console; 3389 for a host RDP console. Display only. */
   port: string;
-  /** Hyper-V VM GUID - the vmconnect preconnection-blob. Omit for a host console. */
-  vmGuid?: string;
   /** RDP security mode. Default "vmconnect" (VM console); use "any"/"nla" for a host. */
   security?: string;
   /** Label shown in the status bar (VM name, or host name for a host console). */
@@ -61,9 +63,9 @@ const STATE_DOT: Record<ConnState, string> = {
 
 export function GuacamoleConsole({
   tunnelUrl,
+  target,
   hostname,
   port,
-  vmGuid,
   security = "vmconnect",
   vmName,
   username,
@@ -81,6 +83,10 @@ export function GuacamoleConsole({
   const [attempt, setAttempt] = React.useState(0);
   const [showClipboard, setShowClipboard] = React.useState(false);
   const [clipboardText, setClipboardText] = React.useState("");
+
+  // a string, so a new `target` object each render doesn't reconnect
+  const targetKey =
+    "vmId" in target ? `vm-id=${target.vmId}` : `host-id=${target.hostId}`;
 
   // (re)connect whenever `attempt` changes
   React.useEffect(() => {
@@ -107,14 +113,13 @@ export function GuacamoleConsole({
 
       const width = Math.max(container.offsetWidth, 640);
       const height = Math.max(container.offsetHeight, 480);
+      const [targetParam, targetId] = targetKey.split("=");
       const query = new URLSearchParams({
-        hostname,
-        port,
+        [targetParam]: targetId,
         security,
         width: String(width),
         height: String(height),
       });
-      if (vmGuid) query.set("vm-guid", vmGuid);
       if (username) query.set("username", username);
       if (password) query.set("password", password);
 
@@ -223,9 +228,7 @@ export function GuacamoleConsole({
   }, [
     attempt,
     tunnelUrl,
-    hostname,
-    port,
-    vmGuid,
+    targetKey,
     security,
     username,
     password,

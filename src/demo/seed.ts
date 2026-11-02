@@ -35,6 +35,7 @@ import type {
 import { Rng, hash32, randomSeed, uuid } from "./random";
 import { diskFileName, vmFolderFor } from "./paths";
 import { taskProfile } from "./taskProfiles";
+import { seedPermissions, seedRoles } from "./rbac";
 
 /**
  * Random initial inventory for demo mode:
@@ -421,6 +422,8 @@ export function generateDemoState(now = Date.now(), seed = randomSeed()): DemoSt
     tasks: [],
     agentBinaries: [],
     auditEvents: [],
+    roles: seedRoles(),
+    permissions: [],
   };
 
   // ---- tag catalog: OS + Datacenter categories and a few standalone tags ----
@@ -816,6 +819,7 @@ export function generateDemoState(now = Date.now(), seed = randomSeed()): DemoSt
   ];
 
   // ---- task history + one export still running ----
+  state.permissions = seedPermissions(rng, state, now);
   state.tasks = historyTasks(rng, state, now);
   const exportable = state.vms.find((v) => v.state === "Off" && !v.lock);
   if (exportable) {

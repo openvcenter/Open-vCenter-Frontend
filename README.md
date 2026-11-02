@@ -68,14 +68,17 @@ Open http://localhost:3000. You are redirected to `/login` → **Sign in**.
 with a discovery document - Keycloak, Auth0, Okta, Entra ID, … Point `OIDC_ISSUER`
 at it and register `${app}/frontend-api/auth/callback/oidc` as a redirect URI.
 `../infra-containers` ships a Keycloak realm (`ovc`, client `ovc-frontend`) as the
-default. Roles are read from the token at `OIDC_ROLES_CLAIM` (default
-`resource_access.${client_id}.roles`): `ADMINISTRATOR` = full access; a signed-in
-user with no roles lands on `/access-denied`. Configure `OIDC_*` / `BETTER_AUTH_*`
+default. The user's groups are read from the token at `OIDC_GROUPS_CLAIM`
+(default `resource_access.${client_id}.roles`, the Keycloak client roles; use
+`groups` for Keycloak groups, Entra ID or Okta). Permissions are granted to
+those groups (Administration ▸ Roles, and a Permissions tab on every object);
+the `ADMINISTRATOR` group = full access; a signed-in user in no group lands on
+`/access-denied`. Configure `OIDC_*` / `BETTER_AUTH_*`
 / `API_URL` in `.env.local` (`.env.example`).
 
 For local UI work without a provider, set **`OVC_AUTH_MODE=stub`** on both this app
 and ovc-backend - same variable, same value on both sides: no login screen, every
-request is `admin@ovc.debug.app` with the `ADMINISTRATOR` role. Works in every
+request is `admin@ovc.debug.app` in the `ADMINISTRATOR` group. Works in every
 build, including `production` - the UI shows a standing warning dialog while it's
 active.
 
@@ -143,9 +146,10 @@ where the browser simulates the backend.
 | `API_URL`                               | yes (server) | -                                    | Base URL of the `ovc-backend` REST API, used by the `/frontend-api/api` proxy. Local dev: `http://localhost:8000/api`.                                                                                                                                                                                    |
 | `GUACD_URL`                             | no (server)  | `localhost:4822`                     | guacd address for the console tunnel (`/webrdp/tunnel`), read per connection: `host:port` or `scheme://host:port` (scheme ignored - guacd is raw TCP; no port ⇒ 4822).                                                                                                                                    |
 | `OIDC_ISSUER`                           | yes (server) | -                                    | OIDC issuer / discovery base, e.g. `http://localhost:8080/realms/ovc`, `https://ORG.okta.com`, `https://ORG.auth0.com`.                                                                                                                                                                                   |
+| `OIDC_INTERNAL_URL`                     | no (server)  | `OIDC_ISSUER`                        | The same issuer as this server reaches it, when that differs from the browser-facing `OIDC_ISSUER` (containers: `http://ovc-keycloak:8080/realms/ovc`). Only the discovery document is fetched from it, so the provider must return server-reachable token/userinfo/jwks endpoints (Keycloak: `KC_HOSTNAME=<public URL>` + `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true`).|
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | yes (server) | -                                    | A confidential OIDC client for this app.                                                                                                                                                                                                                                                                  |
 | `OIDC_SCOPES`                           | no           | `openid profile email`               | Space-separated scopes to request.                                                                                                                                                                                                                                                                        |
-| `OIDC_ROLES_CLAIM`                      | no           | `resource_access.${client_id}.roles` | Dot-path to the roles array in the token; `${client_id}` is substituted. Keycloak realm roles → `realm_access.roles`; Auth0/Okta → `roles` or a namespaced claim.                                                                                                                                         |
+| `OIDC_GROUPS_CLAIM`                     | no           | `resource_access.${client_id}.roles` | Where the user's groups are in the token (dot-path; `${client_id}` is substituted) - the names permissions are granted to. Keycloak realm roles → `realm_access.roles`; Keycloak groups (Group Membership mapper), Entra ID, Okta → `groups`. Same value as ovc-backend's `OVC_OIDC_GROUPS_CLAIM`. |
 | `BETTER_AUTH_SECRET`                    | yes (server) | -                                    | 32-byte hex (`openssl rand -hex 32`) - seals the session cookies.                                                                                                                                                                                                                                         |
 | `BETTER_AUTH_URL`                       | yes (server) | -                                    | Public URL of the auth endpoints, e.g. `http://localhost:3000/frontend-api/auth`.                                                                                                                                                                                                                         |
 | `OVC_AUTH_MODE`                         | no (server)  | `oidc`                               | `stub` ⇒ skip OIDC, every request is `admin@ovc.debug.app` / `[ADMINISTRATOR]`. Same variable, same value as ovc-backend's `OVC_AUTH_MODE` - set both to `stub` and neither side needs an IdP. Works in every build, including `production`. When set, `OIDC_*` / `BETTER_AUTH_*` are not required.       |
@@ -264,16 +268,16 @@ src/
 
   auth/                       The single place auth logic lives.
     auth.ts                   better-auth client (cookie mode), genericOAuth via
-                              OIDC discovery; getUserInfo → roles at OIDC_ROLES_CLAIM
+                              OIDC discovery; getUserInfo → groups at OIDC_GROUPS_CLAIM
     types.ts                  AuthUser / AuthContextValue
-    roles.ts                  ADMIN_ROLE, isAdminRole/hasAnyRole, claimByPath/rolesFromClaims
+    groups.ts                 ADMIN_GROUP, isAdminGroup/hasAnyGroup, claimByPath/groupsFromClaims
     server.ts                 server fns: fetchCurrentUser, signInFn,
                               clearAuthCookies, logoutFn
     token.server.ts           getAccessToken() - server-only, used by the proxy
     bypass.ts                 OVC_AUTH_MODE=stub (server-only, every build)
     DevBypassWarning.tsx      standing warning dialog shown while bypass is active
-    provider.tsx              <AuthProvider>; user / isAdmin / hasAnyRole / logout
-    guard.ts                  requireAuth / requireAnyRole / requireAdmin
+    provider.tsx              <AuthProvider>; user / isAdmin / hasAnyGroup / logout
+    guard.ts                  requireAuth / requireAnyGroup / requireAdmin
     useAuth.ts                useAuth() hook
 
   routes/frontend-api/        auth/$.ts  - better-auth OAuth endpoints
