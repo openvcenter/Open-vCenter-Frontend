@@ -81,8 +81,8 @@ Companion docs: `CLAUDE.md` (short working summary of this file),
    - **File**: Cluster Management, Hosts Management, Agent Management (`host.manage`),
      Tag Management (`tag.manage`), Refresh (labelled F5; invalidates every query), Sign Out.
    - **Action**: Move VM to Folder (needs a VM selected with ≥ 1 reachable folder,
-     `vm.config`), Move Host (a host selected, `host.manage` globally), Delete Folder (a
-     folder selected, `folder.manage` on its cluster / host).
+     `vm.config`), Move Host (a host selected, `host.manage` globally), Rename Folder and
+     Delete Folder (a folder selected, `folder.manage` on its cluster / host).
    - **View**: Refresh, Events History (`audit.read`), VM Locks (`task.cancel`).
    - **Administration**: Roles, Global Permissions (both `rbac.manage`).
    - A privilege in brackets is held globally unless an object is named; without it
@@ -728,7 +728,7 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
   - "Move to Folder" is disabled when no such folder exists; "(no folder)" removes
     the VM from its folder.
   - It is `PATCH /vms/:id {folderId}`, a DB-only change with no agent involved.
-- **Renaming a folder**: the folder header's Rename Folder opens a one-field
+- **Renaming a folder**: Rename Folder (folder header, or Action ▸ Rename Folder) opens a one-field
   dialog prefilled with the current name (`PATCH /folders/:id {name}`); Rename is
   disabled until the name changes.
 - **Deleting a folder** detaches its VMs; they are not deleted. If the folder was

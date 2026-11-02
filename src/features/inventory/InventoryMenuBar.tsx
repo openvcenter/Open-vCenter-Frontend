@@ -25,7 +25,7 @@ export function InventoryMenuBar() {
   const [authDebugOpen, setAuthDebugOpen] = React.useState(false)
   const { selection } = useInventorySelection()
   const canMoveVm = useCan('vm.config', selection?.kind === 'vm' ? objKey('vm', selection.id) : null)
-  const canDeleteFolder = useCan(
+  const canManageFolder = useCan(
     'folder.manage',
     useFolderOwnerKey(selection?.kind === 'folder' ? selection.id : null),
   )
@@ -82,8 +82,15 @@ export function InventoryMenuBar() {
             organizeDialog.open({ kind: 'move-host', hostId: selection.id }),
         },
         {
+          label: 'Rename Folder',
+          disabled: selection?.kind !== 'folder' || !canManageFolder,
+          onSelect: () =>
+            selection?.kind === 'folder' &&
+            organizeDialog.open({ kind: 'rename-folder', folderId: selection.id }),
+        },
+        {
           label: 'Delete Folder',
-          disabled: selection?.kind !== 'folder' || !canDeleteFolder,
+          disabled: selection?.kind !== 'folder' || !canManageFolder,
           onSelect: () =>
             selection?.kind === 'folder' &&
             organizeDialog.open({ kind: 'delete-folder', folderId: selection.id }),
