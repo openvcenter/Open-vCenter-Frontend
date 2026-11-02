@@ -55,7 +55,8 @@ export function Td({
 
 /**
  * A row that opens something (a host, a VM, a template). It takes focus in Tab
- * order and opens on Enter or Space, not only on click.
+ * order and opens on Enter or Space, not only on click. Pass `aria-selected` to
+ * mark the current row: it keeps the selection colours, also under hover/focus.
  */
 export function ActionRow({
   onActivate,
@@ -73,7 +74,9 @@ export function ActionRow({
         }
       }}
       className={cn(
-        "cursor-default hover:bg-surface-2 focus-visible:bg-surface-2",
+        "cursor-default",
+        "aria-selected:bg-selection aria-selected:text-selection-text",
+        "not-aria-selected:hover:bg-surface-2 not-aria-selected:focus-visible:bg-surface-2",
         className,
       )}
       {...props}

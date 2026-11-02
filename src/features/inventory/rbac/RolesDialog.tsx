@@ -186,10 +186,7 @@ export function RolesDialog() {
                   key={r.id}
                   onActivate={() => void pick(r)}
                   aria-selected={r.id === selectedId}
-                  className={cn(
-                    "border-t border-surface-2",
-                    r.id === selectedId && "bg-selection text-selection-text",
-                  )}
+                  className="border-t border-surface-2"
                 >
                   <Td>
                     <span className="flex items-center gap-1">
