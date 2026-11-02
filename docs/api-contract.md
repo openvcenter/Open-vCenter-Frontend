@@ -95,6 +95,11 @@ identity or scope and only mirrors the result to grey items out.
   read of a host / cluster also works when the caller sees a VM on it (VM dialogs
   read the host). Forbidden calls return `403 FORBIDDEN` (`message` names the
   missing privilege).
+- **Self-management is global-only**: creating, renaming, moving and removing a
+  host or a cluster (and host onboarding: agent config / install URL) needs the
+  privilege **globally**. A permission on a host / cluster covers what is inside
+  it (VMs, folders, VLANs) and operating it (maintenance, console, agent
+  update), never the object itself.
 - Members of the `ADMINISTRATOR` group (`OVC_ADMIN_GROUP`) are superusers: every privilege
   everywhere, no permission row.
 - A signed-in user in **no group** is stopped at `/access-denied`
@@ -179,8 +184,8 @@ Notes on the task fields:
 | GET    | `/hosts/:id/templates`    | -                                         | `Template[]` |
 | GET    | `/hosts/:id/isos`         | -                                         | `Iso[]` |
 | GET    | `/hosts/:id/metrics`      | -                                         | `HostMetricSample[]`: the **last hour**, oldest first |
-| GET    | `/hosts/:id/agent-config` | -                                         | `HostAgentConfig`. `host.manage` (carries RabbitMQ credentials). Re-asserts the host's RabbitMQ user on every call |
-| GET    | `/hosts/:id/agent-install-url` | -                                    | `HostAgentInstall`. `host.manage`. Mints a short-lived HMAC-tokenized `agent-install.ps1` URL (TTL `OVC_AGENT_INSTALL_URL_TTL_SECONDS`). Used by the "Setup Agent" tab |
+| GET    | `/hosts/:id/agent-config` | -                                         | `HostAgentConfig`. `host.manage` (global; carries RabbitMQ credentials). Re-asserts the host's RabbitMQ user on every call |
+| GET    | `/hosts/:id/agent-install-url` | -                                    | `HostAgentInstall`. `host.manage` (global). Mints a short-lived HMAC-tokenized `agent-install.ps1` URL (TTL `OVC_AGENT_INSTALL_URL_TTL_SECONDS`). Used by the "Setup Agent" tab |
 | GET    | `/folders`                | `hostId?`, `clusterId?`                   | `Folder[]` (no filter → every folder the caller may see) |
 | GET    | `/vlans`                  | `hostId?`, `clusterId?`                   | `Vlan[]`. `hostId` resolves to the host's own VLANs **plus** its cluster's (if any) |
 | GET    | `/tag-categories`         | -                                         | `TagCategory[]`, by name. Any role |
@@ -211,11 +216,11 @@ authenticated by a short-lived token in the URL:
 | Method | Path            | Body | Response |
 | ------ | --------------- | ---- | -------- |
 | POST   | `/clusters`     | `{ name, hypervisor? }` (default `"hyperv"`) | `201 Cluster`. `cluster.manage` (global) |
-| PATCH  | `/clusters/:id` | `{ name }` | `Cluster` (rename). `cluster.manage` |
-| DELETE | `/clusters/:id` | - | `204`. `cluster.manage`. Only an **empty** cluster (no member hosts) can be deleted; otherwise `400 INVALID`. Cluster-scoped folders go with it (their VMs are detached) |
-| POST   | `/hosts`        | `{ name, clusterId?, hypervisor? }` (default `"hyperv"`; must match the cluster's) | `201 HostDetail`. `host.manage` on the cluster (global for a standalone host). Also provisions the host's RabbitMQ queues and agent user. `fqdn` / `ipAddress` are filled in by the agent on its first `agent_status` |
-| PATCH  | `/hosts/:id`    | any subset of `{ name, fqdn, clusterId }`. Only keys present in the body are applied; `clusterId: null` → standalone; `fqdn` is normally left to the agent | `HostDetail`. `name` / `fqdn`: `host.config`; `clusterId`: `host.manage` on the host **and** on the destination (cluster, or global). Changing `clusterId` clears every folder assignment for the host's VMs and drops any host-scoped folders |
-| DELETE | `/hosts/:id`    | - | `204`. `host.manage`. Cascades: the host's VM records, host-scoped folders, templates and ISOs are deleted. The host's RabbitMQ queues and agent user are torn down (best-effort). The virtualization host itself is not touched |
+| PATCH  | `/clusters/:id` | `{ name }` | `Cluster` (rename). `cluster.manage` (global) |
+| DELETE | `/clusters/:id` | - | `204`. `cluster.manage` (global). Only an **empty** cluster (no member hosts) can be deleted; otherwise `400 INVALID`. Cluster-scoped folders go with it (their VMs are detached) |
+| POST   | `/hosts`        | `{ name, clusterId?, hypervisor? }` (default `"hyperv"`; must match the cluster's) | `201 HostDetail`. `host.manage` (global). Also provisions the host's RabbitMQ queues and agent user. `fqdn` / `ipAddress` are filled in by the agent on its first `agent_status` |
+| PATCH  | `/hosts/:id`    | any subset of `{ name, fqdn, clusterId }`. Only keys present in the body are applied; `clusterId: null` → standalone; `fqdn` is normally left to the agent | `HostDetail`. `name` / `fqdn`: `host.config` (global); `clusterId`: `host.manage` (global). Changing `clusterId` clears every folder assignment for the host's VMs and drops any host-scoped folders |
+| DELETE | `/hosts/:id`    | - | `204`. `host.manage` (global). Cascades: the host's VM records, host-scoped folders, templates and ISOs are deleted. The host's RabbitMQ queues and agent user are torn down (best-effort). The virtualization host itself is not touched |
 | POST   | `/folders`      | `{ name, clusterId? \| hostId? }` (exactly one) | `201 Folder`. `folder.manage` on the cluster / host. `hostId` must be a **standalone** host |
 | PATCH  | `/folders/:id`  | `{ name }` | `Folder`. `folder.manage` |
 | DELETE | `/folders/:id`  | - | `204`. `folder.manage`. VMs in the folder are detached (`folderId → null`), not deleted |

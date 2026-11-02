@@ -25,10 +25,6 @@ export function InventoryMenuBar() {
   const [authDebugOpen, setAuthDebugOpen] = React.useState(false)
   const { selection } = useInventorySelection()
   const canMoveVm = useCan('vm.config', selection?.kind === 'vm' ? objKey('vm', selection.id) : null)
-  const canMoveHost = useCan(
-    'host.manage',
-    selection?.kind === 'host' ? objKey('host', selection.id) : null,
-  )
   const canDeleteFolder = useCan(
     'folder.manage',
     selection?.kind === 'folder' ? objKey('folder', selection.id) : null,
@@ -80,7 +76,7 @@ export function InventoryMenuBar() {
         },
         {
           label: 'Move Host',
-          disabled: selection?.kind !== 'host' || !canMoveHost,
+          disabled: selection?.kind !== 'host' || !global.can('host.manage'),
           onSelect: () =>
             selection?.kind === 'host' &&
             organizeDialog.open({ kind: 'move-host', hostId: selection.id }),

@@ -81,7 +81,7 @@ Companion docs: `CLAUDE.md` (short working summary of this file),
    - **File**: Cluster Management, Hosts Management, Agent Management (`host.manage`),
      Tag Management (`tag.manage`), Refresh (labelled F5; invalidates every query), Sign Out.
    - **Action**: Move VM to Folder (needs a VM selected with ≥ 1 reachable folder,
-     `vm.config`), Move Host (a host selected, `host.manage`), Delete Folder (a
+     `vm.config`), Move Host (a host selected, `host.manage` globally), Delete Folder (a
      folder selected, `folder.manage`).
    - **View**: Refresh, Events History (`audit.read`), VM Locks (`task.cancel`).
    - **Administration**: Roles, Global Permissions (both `rbac.manage`).
@@ -354,8 +354,8 @@ To add a call:
 | hosts        | `GET /hosts`                                                            | `?clusterId`                                                                                                         | `Host[]`                                               |
 |              | `GET /hosts/:id`                                                        | -                                                                                                                    | `HostDetail` (+ `hardware`)                            |
 |              | `GET /hosts/:id/vms` · `/metrics` · `/templates` · `/isos`              | -                                                                                                                    | `Vm[]` · `HostMetricSample[]` · `Template[]` · `Iso[]` |
-|              | `GET /hosts/:id/agent-config` (`host.manage`)                           | -                                                                                                                    | `HostAgentConfig`                                      |
-|              | `GET /hosts/:id/agent-install-url` (`host.manage`)                      | -                                                                                                                    | `HostAgentInstall`                                     |
+|              | `GET /hosts/:id/agent-config` (`host.manage`, global)                   | -                                                                                                                    | `HostAgentConfig`                                      |
+|              | `GET /hosts/:id/agent-install-url` (`host.manage`, global)              | -                                                                                                                    | `HostAgentInstall`                                     |
 |              | `POST /hosts`                                                           | `{ name, clusterId }`                                                                                                | `HostDetail`                                           |
 |              | `PATCH /hosts/:id`                                                      | any of `{ name, fqdn, clusterId }` (`clusterId: null` = standalone)                                                  | `HostDetail`                                           |
 |              | `DELETE /hosts/:id`                                                     | - (cascades)                                                                                                         | `204`                                                  |
@@ -654,11 +654,20 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
     (`vm.console`), Assign Tag / remove chip (`vm.config`);
   - host: Pause / Resume Node and Restart (`host.maintenance`), Console button
     (`host.console`), Update Agent (`host.manage` globally - hidden without it);
+  - Cluster Management: Create / Rename / Delete (`cluster.manage` globally);
+    Hosts Management: Add Host and Remove (`host.manage` globally), Edit (name /
+    FQDN need `host.config`, cluster needs `host.manage`, both globally) - see
+    the self-management rule below;
   - tree toolbar: New VM (`vm.create` on ≥ 1 online host), New Cluster
     (`cluster.manage`), New Host (`host.manage`), New Folder (`folder.manage` on
     the scope); the VM wizard only offers hosts with `vm.create`;
   - Tag Management button in Assign Tags (`tag.manage`);
   - Events / Permissions tabs (see Detail pane).
+- **Self-management is global-only** (backend rule): creating, renaming, moving
+  and removing a host or a cluster, and host onboarding (Setup Agent data), need
+  the privilege **globally**. A permission on a host / cluster covers what is
+  inside it (VMs, folders, VLANs) and operating it (maintenance, console, agent
+  update), never the object itself.
 - **Administration ▸ Roles** (`rbac/RolesDialog.tsx`): roles table (lock icon =
   built-in, "In use" = permission count) + Name / Description + one GroupBox of
   privilege checkboxes per privilege group. New, Clone ("<name> copy"), Delete

@@ -15,6 +15,7 @@ import {
 import { clustersQuery, hostsQuery } from "~/api/queries";
 import type { Host } from "~/api/types";
 import { confirm } from "../confirm";
+import { usePrivileges, GLOBAL_KEY } from "../rbac/privileges";
 import { organizeDialog } from "./dialogStore";
 import {
   useCreateCluster,
@@ -59,6 +60,8 @@ export function ClusterManagementDialog() {
   const create = useCreateCluster();
   const rename = useRenameCluster();
   const del = useDeleteCluster();
+  // creating, renaming and deleting clusters is global-only
+  const canManage = usePrivileges(GLOBAL_KEY).can("cluster.manage");
 
   const [newName, setNewName] = React.useState("");
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -164,12 +167,13 @@ export function ClusterManagementDialog() {
                               icon={Pencil}
                               label="Rename"
                               onClick={() => startEdit(c.id, c.name)}
+                              disabled={!canManage}
                             />
                             <IconBtn
                               icon={Trash2}
                               label="Delete"
                               onClick={() => removeCluster(c.id, c.name)}
-                              disabled={c.hostCount > 0}
+                              disabled={!canManage || c.hostCount > 0}
                             />
                           </>
                         )}
@@ -187,10 +191,11 @@ export function ClusterManagementDialog() {
             label="New cluster"
             value={newName}
             className="w-full"
+            disabled={!canManage}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addCluster()}
           />
-          <Button icon={Plus} onClick={addCluster} disabled={!newName.trim()}>
+          <Button icon={Plus} onClick={addCluster} disabled={!canManage || !newName.trim()}>
             Create
           </Button>
         </div>
@@ -215,6 +220,10 @@ export function HostManagementDialog() {
   const create = useCreateHost();
   const edit = useEditHost();
   const del = useDeleteHost();
+  // adding, renaming, moving and removing hosts is global-only
+  const global = usePrivileges(GLOBAL_KEY);
+  const canManage = global.can("host.manage");
+  const canConfig = global.can("host.config");
 
   const [adding, setAdding] = React.useState(false);
   const [form, setForm] = React.useState<HostDraft>(EMPTY_DRAFT);
@@ -315,6 +324,7 @@ export function HostManagementDialog() {
                           autoFocus
                           value={draft.name}
                           className="w-full"
+                          disabled={!canConfig}
                           onChange={(e) =>
                             setDraft((d) => ({ ...d, name: e.target.value }))
                           }
@@ -335,6 +345,7 @@ export function HostManagementDialog() {
                         <TextField
                           value={draft.fqdn}
                           className="w-full"
+                          disabled={!canConfig}
                           onChange={(e) =>
                             setDraft((d) => ({ ...d, fqdn: e.target.value }))
                           }
@@ -350,6 +361,7 @@ export function HostManagementDialog() {
                         <Dropdown
                           value={draft.cluster}
                           className="w-full"
+                          disabled={!canManage}
                           onChange={(v) =>
                             setDraft((d) => ({ ...d, cluster: v }))
                           }
@@ -381,11 +393,13 @@ export function HostManagementDialog() {
                               icon={Pencil}
                               label="Edit"
                               onClick={() => startEdit(h)}
+                              disabled={!canConfig && !canManage}
                             />
                             <IconBtn
                               icon={Trash2}
                               label="Remove"
                               onClick={() => removeHost(h)}
+                              disabled={!canManage}
                             />
                           </>
                         )}
@@ -438,7 +452,7 @@ export function HostManagementDialog() {
               </div>
             </div>
           ) : (
-            <Button icon={Plus} onClick={() => setAdding(true)}>
+            <Button icon={Plus} onClick={() => setAdding(true)} disabled={!canManage}>
               Add Host…
             </Button>
           )}
