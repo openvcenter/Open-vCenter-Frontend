@@ -31,8 +31,9 @@ response, error code or polling cadence updates it in the same change (see also
 - **Auth**: `Authorization: Bearer <JWT>` (the OIDC access token).
   - The browser calls the proxy with its session cookie; the proxy swaps the cookie
     for the bearer token and forwards the request.
-  - `ovc-backend` verifies the JWT (JWKS) and reads the roles from the claim at
-    `OVC_OIDC_ROLES_CLAIM` (default `resource_access.${client_id}.roles`).
+  - `ovc-backend` verifies the JWT (JWKS) and reads the user's groups from the
+    claim at `OVC_OIDC_GROUPS_CLAIM` (default `resource_access.${client_id}.roles`,
+    the Keycloak client roles; `groups` for Keycloak groups, Entra ID, Okta).
   - `OVC_AUTH_MODE=stub` bypasses all of this for local dev.
 - **Errors**: every non-2xx response carries
   ```json
@@ -79,10 +80,11 @@ identity or scope and only mirrors the result to grey items out.
   (every privilege, including future ones), Read-only (visible, no privileges),
   No access. Editable sample roles: VM Power User, VM Console User, VM
   Administrator, Host Administrator, Auditor.
-- **Permission**: a role granted to an identity-provider **role or group** (never
-  an individual user) on `global`, a cluster, a host, a folder or a VM, with
-  `propagate` (default true: it also applies below). Roles come from the token at
-  `OVC_OIDC_ROLES_CLAIM`, groups at `OVC_OIDC_GROUPS_CLAIM`.
+- **Permission**: a role granted to an identity-provider **group** (never an
+  individual user) on `global`, a cluster, a host, a folder or a VM, with
+  `propagate` (default true: it also applies below). The groups come from the
+  token at `OVC_OIDC_GROUPS_CLAIM` - one source per provider, whatever the provider
+  calls them (Keycloak client roles by default).
 - **Resolution**: cluster → host → VM, and cluster (or standalone host) → folder →
   VM. One level combines the caller's matching rows (on ancestors only propagating
   ones); a No-access row blocks the level. Per path the most specific level with
@@ -93,9 +95,9 @@ identity or scope and only mirrors the result to grey items out.
   read of a host / cluster also works when the caller sees a VM on it (VM dialogs
   read the host). Forbidden calls return `403 FORBIDDEN` (`message` names the
   missing privilege).
-- The `ADMINISTRATOR` role (`OVC_ADMIN_ROLE`) is a superuser: every privilege
+- Members of the `ADMINISTRATOR` group (`OVC_ADMIN_GROUP`) are superusers: every privilege
   everywhere, no permission row.
-- A signed-in user with **no role and no group** is stopped at `/access-denied`
+- A signed-in user in **no group** is stopped at `/access-denied`
   before any API call.
 - Each endpoint below names the privilege it needs, on the object it acts on (a
   create: on the parent). VM actions: see [VM power / lifecycle actions](#vm-power--lifecycle-actions).
@@ -136,12 +138,12 @@ See [`src/api/types.ts`](../src/api/types.ts) for the exact TypeScript shapes. S
 | `TaskStatus`            | `queued \| running \| succeeded \| failed \| timeout` |
 | `AuditEvent`            | `id, occurredAt, actorType (user \| system), actorEmail, actorName, action, targetType, targetId, targetName, hostId, clusterId, taskId, outcome (pending \| succeeded \| failed \| timeout), error, details`. See [Audit log](#audit-log) |
 | `AuditEventPage`        | `items: AuditEvent[], nextCursor: string \| null` |
-| `Me`                    | `id, email, displayName, roles, groups, superuser, globalPrivileges` |
+| `Me`                    | `id, email, displayName, groups, superuser, globalPrivileges` |
 | `RbacCatalog`           | `privileges: { id, group, label }[], vmActions: { [action]: privilege \| null }` |
 | `Role`                  | `id, name, description, builtin, privileges, permissionCount` |
-| `Permission`            | `id, principalType (role \| group), principalId, roleId, roleName, scopeType (global \| cluster \| host \| folder \| vm), scopeId, scopeName, propagate, createdBy, createdAt` |
+| `Permission`            | `id, group, roleId, roleName, scopeType (global \| cluster \| host \| folder \| vm), scopeId, scopeName, propagate, createdBy, createdAt` |
 | `PermissionList`        | `direct: Permission[], inherited: Permission[]` (inherited = propagating rows on objects above) |
-| `EffectivePermissions`  | `principal {type, id}, superuser, visible, privileges, paths: [{ name (object \| vm \| folder \| host), levels: [{ scopeType, scopeId, scopeName, blocked, winner, permissions }] }]` |
+| `EffectivePermissions`  | `group, superuser, visible, privileges, paths: [{ name (object \| vm \| folder \| host), levels: [{ scopeType, scopeId, scopeName, blocked, winner, permissions }] }]` |
 | `ConsoleTarget`         | `hostname, port, vmGuid \| null` |
 
 Notes on the task fields:
@@ -520,12 +522,12 @@ ids (`targetId`, `hostId`, `clusterId`, `taskId`) are not foreign keys.
 | POST   | `/roles/:id/clone` | `{ name }` | `201 Role` (a custom copy, built-ins included). `rbac.manage` |
 | DELETE | `/roles/:id` | - | `204`. `rbac.manage`. `409 ROLE_BUILTIN`; `409 ROLE_IN_USE` while a permission uses it (`details.permissionCount`) |
 | GET    | `/permissions` | `scopeType` (`global \| cluster \| host \| folder \| vm`), `scopeId` (omit for global) | `PermissionList`. `rbac.manage` on the object |
-| POST   | `/permissions` | `{ principalType, principalId, roleId, scopeType, scopeId, propagate? }` | `201 Permission`. `rbac.manage` on the object. `409 PERMISSION_EXISTS` (one per principal per object; `details.permissionId`); `403 ROLE_EXCEEDS_GRANTER` when the role holds privileges the caller lacks there (`details.privileges`) |
+| POST   | `/permissions` | `{ group, roleId, scopeType, scopeId, propagate? }` | `201 Permission`. `rbac.manage` on the object. `409 PERMISSION_EXISTS` (one per group per object; `details.permissionId`); `403 ROLE_EXCEEDS_GRANTER` when the role holds privileges the caller lacks there (`details.privileges`) |
 | PATCH  | `/permissions/:id` | any of `{ roleId, propagate }` | `Permission`. Same checks |
 | DELETE | `/permissions/:id` | - | `204`. `rbac.manage` on its object |
-| GET    | `/principals` | `q?` | `Principal[]` `{ type, id }` (≤ 50): the caller's own roles / groups plus every principal already used in a permission. Needs `rbac.manage` somewhere |
+| GET    | `/rbac/groups` | `q?` | `string[]` (≤ 50): the caller's own groups plus every group already used in a permission. Needs `rbac.manage` somewhere |
 | GET    | `/me/privileges` | `ids` = comma-separated `global` / `<scopeType>:<id>` (≤ 200) | `{ items: { [key]: string[] \| null } }`: the caller's privileges per object; `null` = not visible (or gone) |
-| GET    | `/rbac/effective` | `principal` = `role:<name>` / `group:<name>`, `object` = `global` / `<scopeType>:<id>` | `EffectivePermissions`. `rbac.manage` on the object |
+| GET    | `/rbac/effective` | `group` = the group name, `object` = `global` / `<scopeType>:<id>` | `EffectivePermissions`. `rbac.manage` on the object |
 
 Deleting a cluster, host, folder or VM deletes its permissions.
 

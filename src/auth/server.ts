@@ -27,7 +27,6 @@ export const fetchCurrentUser = createServerFn({ method: "GET" }).handler(
       id: string;
       email: string;
       name?: string;
-      roles?: unknown;
       groups?: unknown;
     };
     return {
@@ -35,7 +34,6 @@ export const fetchCurrentUser = createServerFn({ method: "GET" }).handler(
         id: u.id,
         email: u.email,
         displayName: u.name,
-        roles: Array.isArray(u.roles) ? (u.roles as string[]) : [],
         groups: Array.isArray(u.groups) ? (u.groups as string[]) : [],
       },
       authDisabled: false,

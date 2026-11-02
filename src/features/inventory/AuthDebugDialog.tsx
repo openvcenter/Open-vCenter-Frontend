@@ -10,7 +10,7 @@ export function AuthDebugDialog({
   auth: ReturnType<typeof useAuth>;
   onClose: () => void;
 }) {
-  // what the backend makes of the same session: principals + global privileges
+  // what the backend makes of the same session: groups + global privileges
   const me = useQuery(meQuery());
   return (
     <Dialog
@@ -30,7 +30,7 @@ export function AuthDebugDialog({
             {
               isAuthenticated: auth.isAuthenticated,
               isAdmin: auth.isAdmin,
-              hasAnyRole: auth.hasAnyRole,
+              hasAnyGroup: auth.hasAnyGroup,
               user: auth.user,
               backend: me.data ?? (me.isError ? String(me.error) : "loading…"),
             },

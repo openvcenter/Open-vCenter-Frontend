@@ -64,7 +64,7 @@ Companion docs: `CLAUDE.md` (short working summary of this file),
 | `/`                      | redirect → `/inventory`                                                                                  |
 | `/login`                 | "Sign in" card, with a Theme dropdown                                                                    |
 | `/logout`                | clears the session                                                                                      |
-| `/access-denied`         | signed in, but the token carries no role and no group                                                    |
+| `/access-denied`         | signed in, but the token carries no group                                                                |
 | `/inventory` (`_authed`) | the Explorer. Search params `?sel=<kind>:<id>&tab=<tabId>`                                               |
 | `/console` (`_authed`)   | standalone console in its own browser tab: `?vm=<vmId>` (Hyper-V console) or `?host=<hostId>` (host RDP) |
 | `/frontend-api/api/*`    | server proxy → ovc-backend. Injects the OIDC bearer                                                 |
@@ -394,8 +394,8 @@ To add a call:
 | access       | `GET /me` · `GET /rbac/catalog`                                         | -                                                                                                                    | `Me` · `RbacCatalog` (privileges + `vmActions`: VM action → privilege) |
 |              | `GET /me/privileges`                                                    | `?ids=global,vm:<id>,host:<id>,…` (≤ 200, batched by `rbac/privileges.ts`)                                          | `{ items: { [key]: Privilege[] \| null } }` (null = not visible) |
 |              | `GET /roles` · `POST /roles` · `PATCH /roles/:id` · `POST /roles/:id/clone` · `DELETE /roles/:id` | `{ name, description?, privileges }` · any of those · `{ name }` · -                                     | `Role[]` · `Role` · `204`                              |
-|              | `GET /permissions` · `POST /permissions` · `PATCH /permissions/:id` · `DELETE /permissions/:id` | `?scopeType&scopeId` · `{ principalType, principalId, roleId, scopeType, scopeId, propagate }` · `{ roleId?, propagate? }` · - | `PermissionList` `{ direct, inherited }` · `Permission` · `204` |
-|              | `GET /principals` · `GET /rbac/effective`                               | `?q` · `?principal=group:<name>&object=vm:<id>`                                                                      | `Principal[]` · `EffectivePermissions`                 |
+|              | `GET /permissions` · `POST /permissions` · `PATCH /permissions/:id` · `DELETE /permissions/:id` | `?scopeType&scopeId` · `{ group, roleId, scopeType, scopeId, propagate }` · `{ roleId?, propagate? }` · - | `PermissionList` `{ direct, inherited }` · `Permission` · `204` |
+|              | `GET /rbac/groups` · `GET /rbac/effective`                              | `?q` · `?group=<name>&object=vm:<id>`                                                                                | `string[]` · `EffectivePermissions`                    |
 | consoles     | `GET /vms/:id/console` (`vm.console`) · `GET /hosts/:id/console` (`host.console`) | - (called by the Console panels, and by the tunnel server-side)                                            | `ConsoleTarget` `{ hostname, port, vmGuid }`           |
 
 #### VM action wire params (`POST /vms/:id/actions/<action>` → agent `AgentRequest.params`)
@@ -452,7 +452,7 @@ task whose agent never answers still ends as `timeout` through the backend sweep
 | templates / isos (flat)                | `['templates']` / `['isos']`                                                     | 15 s / none                            |
 | agent binaries / storage               | `['agent-binaries']` / `['agent-binaries', 'storage']`                           | 30 s / none                            |
 | me / my privileges per object          | `['me']` / `['me', 'privileges', objKey]`                                        | staleTime 60 s; `['me']` invalidated by every mutation (router `MutationCache`) |
-| catalog / roles / permissions / principals / effective | `['rbac', 'catalog' \| 'roles' \| 'permissions' \| 'principals' \| 'effective', …]` | none (catalog: staleTime ∞); RBAC mutations invalidate `['rbac']`, `['me']` and the inventory |
+| catalog / roles / permissions / groups / effective | `['rbac', 'catalog' \| 'roles' \| 'permissions' \| 'groups' \| 'effective', …]` | none (catalog: staleTime ∞); RBAC mutations invalidate `['rbac']`, `['me']` and the inventory |
 | VM / host console target               | `['vms', id, 'console']` / `['hosts', id, 'console']`                            | staleTime 60 s, no retry               |
 
 Always invalidate by prefix: `['vms']`, `['hosts']`, `['tasks']` and so on.
@@ -495,8 +495,8 @@ Always invalidate by prefix: `['vms']`, `['hosts']`, `['tasks']` and so on.
 | ------------------------------------------------------------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------- |
 | `API_URL`                                                                                  | server           | ovc-backend base URL (e.g. `http://localhost:8000/api`)                                     |
 | `VITE_API_URL`                                                                             | client           | API base as seen by the browser. Default `/frontend-api/api`; absolute in split-origin dev  |
-| `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_SCOPES?`, `OIDC_ROLES_CLAIM?` | server           | OIDC provider (discovery). The roles claim defaults to `resource_access.${client_id}.roles` |
-| `OIDC_GROUPS_CLAIM?`                                                                       | server           | dot-path to the groups array (same syntax). Default `groups`. Mirrors ovc-backend's `OVC_OIDC_GROUPS_CLAIM` |
+| `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_SCOPES?`                      | server           | OIDC provider (discovery)                                                                   |
+| `OIDC_GROUPS_CLAIM?`                                                                       | server           | where the user's groups are in the token (dot-path, `${client_id}` substituted). Default `resource_access.${client_id}.roles` (Keycloak client roles); `realm_access.roles`; `groups` (Keycloak Group Membership mapper, Entra ID, Okta). Same value as ovc-backend's `OVC_OIDC_GROUPS_CLAIM` |
 | `OIDC_INTERNAL_URL?`                                                                       | server           | The issuer as the server reaches it, when it differs from the browser-facing `OIDC_ISSUER` (containers). Discovery only; see Auth (OIDC) |
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`                                                    | server           | better-auth                                                                                 |
 | `VITE_OIDC_PROVIDER_NAME?`                                                                 | client           | login button label                                                                          |
@@ -622,22 +622,22 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
 
 ### Access control
 
-- **Entry**: roles come from the token at `OIDC_ROLES_CLAIM`, groups at
-  `OIDC_GROUPS_CLAIM`:
+- **Entry**: the user's groups come from the token at `OIDC_GROUPS_CLAIM` (one
+  source per provider; Keycloak client roles by default):
   - no session → `/login`;
-  - a session with no role **and** no group → `/access-denied` (nothing could be
+  - a session with no group → `/access-denied` (nothing could be
     granted to it);
   - anyone else gets in; what they see is the backend's call.
 - **Model** (enforced by ovc-backend, see its LLM.md › Access control):
   privileges (`vm.power`, `host.manage`, …, catalog `GET /rbac/catalog`) → roles
   (built-in Administrator / Read-only / No access, plus editable custom roles) →
-  permissions: a role granted to an identity-provider **role or group** (never a
+  permissions: a role granted to an identity-provider **group** (never a
   user) on global / a cluster / a host / a folder / a VM, optionally propagating
   down. A VM's own permissions override the rest; otherwise it gets the union of
   its folder and its host. Lists come back filtered to what is granted (nothing
   above it), forbidden calls return `403 FORBIDDEN`. The frontend never sends an
   identity or a scope.
-- `ADMINISTRATOR` (`OVC_ADMIN_ROLE`) is a superuser: every privilege everywhere,
+- The `ADMINISTRATOR` group (`OVC_ADMIN_GROUP`) is a superuser: every privilege everywhere,
   no permission needed. `useAuth().isAdmin` is that role - used only to
   short-circuit the privilege hook, never to gate UI.
 - **Greying out** (`features/inventory/rbac/privileges.ts`): `usePrivileges(objKey)`,
@@ -666,11 +666,10 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
 - **Permissions tab** (`rbac/PermissionsPanel.tsx`; also Administration ▸ Global
   Permissions): direct rows (Edit / Remove) then inherited ones, whose "Defined in"
   link selects that object on its Permissions tab. **Add Permission**
-  (`PermissionEditDialog`): Group / Role, the name as the provider sends it (with
-  suggestions from `GET /principals`), a role, Propagate. A delegate can't grant a
+  (`PermissionEditDialog`): the group as the provider sends it (with suggestions
+  from `GET /rbac/groups`), a role, Propagate. A delegate can't grant a
   role with privileges they don't hold there (`ROLE_EXCEEDS_GRANTER`).
-  **Effective Permissions** (`EffectivePermissionsDialog`): for a role / group
-  name, each inheritance path level by level (the deciding level highlighted,
+  **Effective Permissions** (`EffectivePermissionsDialog`): for a group name, each inheritance path level by level (the deciding level highlighted,
   blocked levels flagged) and the resulting privileges.
 - RBAC changes invalidate `['rbac']`, `['me']` and the inventory lists; every
   other mutation invalidates `['me']` too (a move can change privileges).
@@ -1332,7 +1331,7 @@ src/
     __root.tsx                providers (QueryClientProvider, AuthProvider, Preferences),
                               <head>, devtools. beforeLoad loads user + preferences.
     index.tsx                 redirect → /inventory
-    _authed.tsx               guard: requireAnyRole() → /login or /access-denied
+    _authed.tsx               guard: requireAnyGroup() → /login or /access-denied
     _authed/inventory.tsx     the Explorer (validateSearch + loader)
     _authed/console.tsx       standalone VM / host console tab
     login.tsx / logout.tsx / access-denied.tsx
@@ -1371,26 +1370,26 @@ Keycloak realm as the default.
 
 1. `/login` → the "Sign in" button → `signInFn` → redirect to the provider.
 2. The callback lands at `/frontend-api/auth/callback/oidc`. `getUserInfo` decodes
-   the token (the access token, else the id token) and reads the roles array at the
-   dot-path `OIDC_ROLES_CLAIM` (default `resource_access.${client_id}.roles`, with
-   `${client_id}` substituted), and the groups array at `OIDC_GROUPS_CLAIM`
-   (default `groups`). Both are persisted on the session user (`roles`, `groups`).
-3. `__root` `beforeLoad` → `fetchCurrentUser()` → `context.user = { …, roles, groups }`.
-4. The `_authed` guard runs `requireAnyRole`: no session → `/login`; a session with
-   no role and no group → `/access-denied`; anyone else → in. `requireAdmin`
-   (the `ADMINISTRATOR` role) exists for routes but none uses it.
+   the token (the access token, else the id token) and reads the user's groups at
+   the dot-path `OIDC_GROUPS_CLAIM` (default `resource_access.${client_id}.roles`,
+   with `${client_id}` substituted). They are persisted on the session user
+   (`groups`).
+3. `__root` `beforeLoad` → `fetchCurrentUser()` → `context.user = { …, groups }`.
+4. The `_authed` guard runs `requireAnyGroup`: no session → `/login`; a session in
+   no group → `/access-denied`; anyone else → in. `requireAdmin` (the
+   `ADMINISTRATOR` group) exists for routes but none uses it.
 5. API calls go to `/frontend-api/api/*` (browser, with the cookie). The server proxy
    attaches `Authorization: Bearer <access token>`, and ovc-backend re-verifies the
    JWT and derives the roles the same way. The token never reaches the browser.
 
-`useAuth()` exposes `user`, `isAdmin`, `hasAnyRole` (a role or a group) and
-`logout`. `ADMINISTRATOR` matches ovc-backend's `OVC_ADMIN_ROLE`; the claims match
-`OVC_OIDC_ROLES_CLAIM` / `OVC_OIDC_GROUPS_CLAIM`. UI gating is by privilege, not
+`useAuth()` exposes `user`, `isAdmin`, `hasAnyGroup` and `logout`.
+`ADMINISTRATOR` matches ovc-backend's `OVC_ADMIN_GROUP`; the claim matches
+`OVC_OIDC_GROUPS_CLAIM`. UI gating is by privilege, not
 by `isAdmin` (Business rules › Access control).
 
 **No-auth bypass**: `OVC_AUTH_MODE=stub` (server-only, `src/auth/bypass.ts`).
 
-- `fetchCurrentUser` returns a fixed `admin@ovc.debug.app` / `[ADMINISTRATOR]` user;
+- `fetchCurrentUser` returns a fixed `admin@ovc.debug.app` user in the `ADMINISTRATOR` group;
   no provider is contacted and there is no login screen.
 - The API proxy forwards requests with **no** bearer, so ovc-backend must use the
   same variable and value: set both to `stub`.

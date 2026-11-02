@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Check, Search } from "lucide-react";
 import { Button, Dialog, GroupBox, Icon, Table, Td, TextField, Th, cn } from "~/components/win95";
 import { effectiveQuery, rbacCatalogQuery } from "~/api/queries";
-import type { Principal, PrincipalType } from "~/api/types";
 
 const PATH_LABEL: Record<string, string> = {
   object: "Inheritance",
@@ -20,8 +19,8 @@ const LEVEL_LABEL: Record<string, string> = {
   vm: "VM",
 };
 
-/** What one role or group may do on an object, and which permission decides
- *  it at each level of each inheritance path (`GET /rbac/effective`). */
+/** What one group may do on an object, and which permission decides it at
+ *  each level of each inheritance path (`GET /rbac/effective`). */
 export function EffectivePermissionsDialog({
   object,
   onClose,
@@ -30,12 +29,11 @@ export function EffectivePermissionsDialog({
   onClose: () => void;
 }) {
   const catalog = useQuery(rbacCatalogQuery());
-  const [type, setType] = React.useState<PrincipalType>("group");
   const [name, setName] = React.useState("");
-  const [principal, setPrincipal] = React.useState<Principal | null>(null);
+  const [group, setGroup] = React.useState<string | null>(null);
   const result = useQuery({
-    ...effectiveQuery(principal ?? { type: "group", id: "" }, object),
-    enabled: !!principal,
+    ...effectiveQuery(group ?? "", object),
+    enabled: !!group,
   });
   const granted = new Set(result.data?.privileges ?? []);
 
@@ -48,35 +46,22 @@ export function EffectivePermissionsDialog({
     >
       <div className="flex flex-col gap-3">
         <div className="flex items-end gap-2">
-          <fieldset className="flex gap-3 pb-1">
-            {(["group", "role"] as const).map((t) => (
-              <label key={t} className="flex cursor-pointer items-center gap-1">
-                <input
-                  type="radio"
-                  name="effective-type"
-                  checked={type === t}
-                  onChange={() => setType(t)}
-                />
-                {t === "group" ? "Group" : "Role"}
-              </label>
-            ))}
-          </fieldset>
           <div className="flex-1">
             <TextField
-              label="Name"
+              label="Group"
               autoFocus
               value={name}
               className="w-full"
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) =>
-                e.key === "Enter" && name.trim() && setPrincipal({ type, id: name.trim() })
+                e.key === "Enter" && name.trim() && setGroup(name.trim())
               }
             />
           </div>
           <Button
             icon={Search}
             disabled={!name.trim()}
-            onClick={() => setPrincipal({ type, id: name.trim() })}
+            onClick={() => setGroup(name.trim())}
           >
             Check
           </Button>
@@ -87,7 +72,7 @@ export function EffectivePermissionsDialog({
           <>
             <p>
               {result.data.superuser
-                ? "Superuser role: every privilege everywhere."
+                ? "Superuser group: every privilege everywhere."
                 : result.data.visible
                   ? `Visible, ${granted.size} privilege${granted.size === 1 ? "" : "s"}.`
                   : "Not visible here."}

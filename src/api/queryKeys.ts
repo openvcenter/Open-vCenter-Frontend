@@ -46,9 +46,9 @@ export const qk = {
   roles: () => ['rbac', 'roles'] as const,
   permissions: (scopeType: string, scopeId: string | null) =>
     ['rbac', 'permissions', scopeType, scopeId] as const,
-  principals: (q: string) => ['rbac', 'principals', q] as const,
-  effective: (principal: string, object: string) =>
-    ['rbac', 'effective', principal, object] as const,
+  groups: (q: string) => ['rbac', 'groups', q] as const,
+  effective: (group: string, object: string) =>
+    ['rbac', 'effective', group, object] as const,
   /** One object's privileges; under `me` so RBAC changes refresh them. */
   myPrivileges: (objKey: string) => ['me', 'privileges', objKey] as const,
   vmConsole: (id: string) => ['vms', id, 'console'] as const,

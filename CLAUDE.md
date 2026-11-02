@@ -145,11 +145,11 @@ guacamole-common-js · react-resizable-panels **v3** (pinned).
   whose agent has never checked in shows only the "Setup Agent" tab (plus Events /
   Permissions when allowed).
 - **Access control**: privileges → roles → permissions granted to identity-provider
-  roles / groups (never users) on global, clusters, hosts, folders and VMs. Lists
+  groups (never users; read at `OIDC_GROUPS_CLAIM`) on global, clusters, hosts, folders and VMs. Lists
   show only granted objects - a folder or VM without a visible parent sits at the
-  tree root. `ADMINISTRATOR` is a superuser. Administration ▸ Roles / Global
+  tree root. The `ADMINISTRATOR` group is a superuser. Administration ▸ Roles / Global
   Permissions and a **Permissions** tab per object need `rbac.manage`. Login needs
-  at least one role or group (`/access-denied` otherwise).
+  at least one group (`/access-denied` otherwise).
 - **Audit log** (`audit.read`): View ▸ Events History and an **Events** tab on
   clusters, hosts and VMs (`GET /audit-events`, cursor-paged). Every successful
   mutation invalidates `['audit-events']` and `['me']` (router `MutationCache`).

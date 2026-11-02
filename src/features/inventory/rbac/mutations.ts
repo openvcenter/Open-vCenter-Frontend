@@ -9,7 +9,7 @@ import {
   updateRole,
 } from '~/api/endpoints/rbac'
 import type { PermissionScope } from '~/api/endpoints/rbac'
-import type { PrincipalType, Privilege } from '~/api/types'
+import type { Privilege } from '~/api/types'
 import { ApiError } from '~/api/client'
 import { statusMessage } from '../actions/statusMessage'
 
@@ -65,20 +65,19 @@ export const useCreatePermission = () =>
   useRbacMutation(
     (
       body: PermissionScope & {
-        principalType: PrincipalType
-        principalId: string
+        group: string
         roleId: string
         propagate: boolean
       },
     ) => createPermission(body),
-    (p) => `Granted ${p.roleName} to ${p.principalType} "${p.principalId}"`,
+    (p) => `Granted ${p.roleName} to group "${p.group}"`,
   )
 
 export const useUpdatePermission = () =>
   useRbacMutation(
     (input: { id: string; roleId?: string; propagate?: boolean }) =>
       updatePermission(input.id, { roleId: input.roleId, propagate: input.propagate }),
-    (p) => `Updated the permission of ${p.principalType} "${p.principalId}"`,
+    (p) => `Updated the permission of group "${p.group}"`,
   )
 
 export const useDeletePermission = () =>

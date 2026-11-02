@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Pencil, Plus, ShieldQuestion, Tag, Trash2, Users } from "lucide-react";
+import { Pencil, Plus, ShieldQuestion, Trash2, Users } from "lucide-react";
 import { Button, Icon, Table, Td, Th } from "~/components/win95";
 import { permissionsQuery } from "~/api/queries";
 import type { Permission, PermissionScopeType } from "~/api/types";
@@ -11,20 +11,11 @@ import { PermissionEditDialog } from "./PermissionEditDialog";
 import { EffectivePermissionsDialog } from "./EffectivePermissionsDialog";
 import { PERMISSIONS_TAB } from "./objectTabs";
 
-export function principalLabel(p: { principalType: string; principalId: string }) {
-  return `${p.principalType === "role" ? "role" : "group"} "${p.principalId}"`;
-}
-
-export function PrincipalCell({ type, id }: { type: string; id: string }) {
+export function GroupCell({ group }: { group: string }) {
   return (
     <span className="flex items-center gap-1">
-      <Icon
-        icon={type === "role" ? Tag : Users}
-        size={13}
-        className={type === "role" ? "text-info" : "text-accent"}
-      />
-      {id}
-      <span className="text-disabled-text">({type})</span>
+      <Icon icon={Users} size={13} className="text-accent" />
+      {group}
     </span>
   );
 }
@@ -58,11 +49,11 @@ export function PermissionsPanel({
   const remove = async (p: Permission) => {
     const ok = await confirm({
       title: "Remove Permission",
-      message: `Remove ${p.roleName} from ${principalLabel(p)} here?`,
+      message: `Remove ${p.roleName} from group "${p.group}" here?`,
       confirmLabel: "Remove",
       danger: true,
     });
-    if (ok) del.mutate({ id: p.id, label: principalLabel(p) });
+    if (ok) del.mutate({ id: p.id, label: `group "${p.group}"` });
   };
 
   const goTo = (p: Permission) => {
@@ -90,7 +81,7 @@ export function PermissionsPanel({
       <Table>
         <thead>
           <tr>
-            <Th>Role / group</Th>
+            <Th>Group</Th>
             <Th>Granted role</Th>
             <Th className="w-[90px]">Propagate</Th>
             <Th>Defined in</Th>
@@ -114,7 +105,7 @@ export function PermissionsPanel({
             rows.map(({ p, inherited: inh }) => (
               <tr key={p.id} className="border-t border-surface-2">
                 <Td>
-                  <PrincipalCell type={p.principalType} id={p.principalId} />
+                  <GroupCell group={p.group} />
                 </Td>
                 <Td>{p.roleName}</Td>
                 <Td>{p.propagate ? "Yes" : "No"}</Td>
@@ -163,7 +154,7 @@ export function PermissionsPanel({
         </tbody>
       </Table>
       <p className="text-disabled-text">
-        Permissions are granted to roles and groups from the identity provider.
+        Permissions are granted to groups from the identity provider.
         On a VM they override everything inherited; otherwise the most specific
         level wins, and a VM gets the union of its folder and host.
       </p>

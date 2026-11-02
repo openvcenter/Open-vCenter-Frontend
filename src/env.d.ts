@@ -47,11 +47,11 @@ declare namespace NodeJS {
     /** Space-separated scopes. Default "openid profile email". */
     OIDC_SCOPES?: string
     /**
-     * Dot-path to the roles array in the token. "${client_id}" is substituted.
-     * Default "resource_access.${client_id}.roles" (Keycloak client roles).
+     * Where the user's groups are in the token - the names permissions are
+     * granted to. Dot-path; "${client_id}" is substituted. Default
+     * "resource_access.${client_id}.roles" (Keycloak client roles). Same value
+     * as ovc-backend's OVC_OIDC_GROUPS_CLAIM.
      */
-    OIDC_ROLES_CLAIM?: string
-    /** Dot-path to the groups array in the token (same syntax). Default "groups". */
     OIDC_GROUPS_CLAIM?: string
     /** 32+ byte random secret used by better-auth to seal cookies */
     BETTER_AUTH_SECRET: string

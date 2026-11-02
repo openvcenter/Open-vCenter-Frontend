@@ -32,13 +32,12 @@ import {
   getHostConsole,
   getMe,
   getPermissions,
-  getPrincipals,
+  getGroups,
   getRbacCatalog,
   getRoles,
   getVmConsole,
 } from "./endpoints/rbac";
 import type { PermissionScope } from "./endpoints/rbac";
-import type { Principal } from "./types";
 import { qk } from "./queryKeys";
 import { TERMINAL_TASK_STATUSES } from "./types";
 
@@ -281,17 +280,17 @@ export const permissionsQuery = (scope: PermissionScope) =>
     queryFn: ({ signal }) => getPermissions(scope, signal),
   });
 
-export const principalsQuery = (q: string) =>
+export const groupsQuery = (q: string) =>
   queryOptions({
-    queryKey: qk.principals(q),
-    queryFn: ({ signal }) => getPrincipals(q, signal),
+    queryKey: qk.groups(q),
+    queryFn: ({ signal }) => getGroups(q, signal),
     staleTime: 30_000,
   });
 
-export const effectiveQuery = (principal: Principal, object: string) =>
+export const effectiveQuery = (group: string, object: string) =>
   queryOptions({
-    queryKey: qk.effective(`${principal.type}:${principal.id}`, object),
-    queryFn: ({ signal }) => getEffectivePermissions(principal, object, signal),
+    queryKey: qk.effective(group, object),
+    queryFn: ({ signal }) => getEffectivePermissions(group, object, signal),
   });
 
 /** Where the VM console connects - 403 without `vm.console`. */

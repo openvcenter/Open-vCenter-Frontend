@@ -6,8 +6,6 @@ import type {
   Permission,
   PermissionList,
   PermissionScopeType,
-  Principal,
-  PrincipalType,
   Privilege,
   RbacCatalog,
   Role,
@@ -58,8 +56,7 @@ export const getPermissions = (scope: PermissionScope, signal?: AbortSignal) =>
 
 export const createPermission = (
   body: PermissionScope & {
-    principalType: PrincipalType
-    principalId: string
+    group: string
     roleId: string
     propagate: boolean
   },
@@ -73,16 +70,17 @@ export const updatePermission = (
 export const deletePermission = (id: string) =>
   request<void>(`/permissions/${id}`, { method: 'DELETE' })
 
-export const getPrincipals = (q: string, signal?: AbortSignal) =>
-  request<Principal[]>('/principals', { query: { q }, signal })
+/** Group names to suggest: the caller's own plus those already used. */
+export const getGroups = (q: string, signal?: AbortSignal) =>
+  request<string[]>('/rbac/groups', { query: { q }, signal })
 
 export const getEffectivePermissions = (
-  principal: Principal,
+  group: string,
   object: string,
   signal?: AbortSignal,
 ) =>
   request<EffectivePermissions>('/rbac/effective', {
-    query: { principal: `${principal.type}:${principal.id}`, object },
+    query: { group, object },
     signal,
   })
 

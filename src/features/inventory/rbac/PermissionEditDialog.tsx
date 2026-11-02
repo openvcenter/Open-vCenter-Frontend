@@ -1,14 +1,14 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Dialog, Dropdown, TextField, cn } from "~/components/win95";
-import { principalsQuery, rolesQuery } from "~/api/queries";
-import type { Permission, PermissionScopeType, PrincipalType } from "~/api/types";
+import { groupsQuery, rolesQuery } from "~/api/queries";
+import type { Permission, PermissionScopeType } from "~/api/types";
 import { ApiError } from "~/api/client";
 import { useCreatePermission, useUpdatePermission } from "./mutations";
-import { PrincipalCell } from "./PermissionsPanel";
+import { GroupCell } from "./PermissionsPanel";
 
 /** Add a permission on an object, or change the role / propagate flag of an
- *  existing one (its role or group is fixed - remove and re-add to change it). */
+ *  existing one (its group is fixed - remove and re-add to change it). */
 export function PermissionEditDialog({
   scopeType,
   scopeId,
@@ -23,19 +23,14 @@ export function PermissionEditDialog({
   const roles = useQuery(rolesQuery());
   const create = useCreatePermission();
   const update = useUpdatePermission();
-  const [principalType, setPrincipalType] = React.useState<PrincipalType>(
-    permission?.principalType ?? "group",
-  );
-  const [principalId, setPrincipalId] = React.useState(permission?.principalId ?? "");
+  const [group, setGroup] = React.useState(permission?.group ?? "");
   const [roleId, setRoleId] = React.useState(permission?.roleId ?? "");
   const [propagate, setPropagate] = React.useState(permission?.propagate ?? true);
   const [error, setError] = React.useState<string | null>(null);
 
-  const needle = principalId.trim();
-  const suggestions = useQuery({ ...principalsQuery(needle), enabled: !permission });
-  const matches = (suggestions.data ?? []).filter(
-    (s) => s.type === principalType && s.id !== needle,
-  );
+  const needle = group.trim();
+  const suggestions = useQuery({ ...groupsQuery(needle), enabled: !permission });
+  const matches = (suggestions.data ?? []).filter((g) => g !== needle);
 
   const fail = (e: unknown) => setError(e instanceof ApiError ? e.message : String(e));
   const save = () => {
@@ -46,7 +41,7 @@ export function PermissionEditDialog({
       );
     } else {
       create.mutate(
-        { scopeType, scopeId, principalType, principalId: needle, roleId, propagate },
+        { scopeType, scopeId, group: needle, roleId, propagate },
         { onSuccess: onClose, onError: fail },
       );
     }
@@ -75,55 +70,39 @@ export function PermissionEditDialog({
         {permission ? (
           <div>
             <p className="mb-1">Granted to</p>
-            <PrincipalCell type={permission.principalType} id={permission.principalId} />
+            <GroupCell group={permission.group} />
           </div>
         ) : (
-          <>
-            <fieldset className="flex gap-4">
-              <legend className="mb-1">Grant to</legend>
-              {(["group", "role"] as const).map((t) => (
-                <label key={t} className="flex cursor-pointer items-center gap-1">
-                  <input
-                    type="radio"
-                    name="principal-type"
-                    checked={principalType === t}
-                    onChange={() => setPrincipalType(t)}
-                  />
-                  {t === "group" ? "Group" : "Role"}
-                </label>
-              ))}
-            </fieldset>
-            <div>
-              <TextField
-                label={principalType === "group" ? "Group name" : "Role name"}
-                autoFocus
-                value={principalId}
-                maxLength={255}
-                className="w-full"
-                onChange={(e) => setPrincipalId(e.target.value)}
-              />
-              <p className="mt-1 text-disabled-text">
-                As the identity provider names it in the token.
-              </p>
-              {matches.length ? (
-                <div className="bevel-sunken mt-1 max-h-[110px] overflow-auto bg-window">
-                  {matches.slice(0, 20).map((m) => (
-                    <button
-                      key={`${m.type}:${m.id}`}
-                      type="button"
-                      className={cn(
-                        "block w-full cursor-default px-2 py-[2px] text-left",
-                        "hover:bg-selection hover:text-selection-text",
-                      )}
-                      onClick={() => setPrincipalId(m.id)}
-                    >
-                      {m.id}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </>
+          <div>
+            <TextField
+              label="Group"
+              autoFocus
+              value={group}
+              maxLength={255}
+              className="w-full"
+              onChange={(e) => setGroup(e.target.value)}
+            />
+            <p className="mt-1 text-disabled-text">
+              As the identity provider names it (OIDC_GROUPS_CLAIM).
+            </p>
+            {matches.length ? (
+              <div className="bevel-sunken mt-1 max-h-[110px] overflow-auto bg-window p-[2px]">
+                {matches.slice(0, 20).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className={cn(
+                      "block w-full cursor-default px-2 py-[2px] text-left",
+                      "hover:bg-selection hover:text-selection-text",
+                    )}
+                    onClick={() => setGroup(m)}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         )}
         <Dropdown
           label="Role"

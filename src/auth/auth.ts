@@ -3,7 +3,7 @@ import { genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { jwtDecode } from "jwt-decode";
 import type { GenericOAuthUserInfo } from "better-auth/plugins";
-import { DEFAULT_GROUPS_CLAIM, DEFAULT_ROLES_CLAIM, rolesFromClaims } from "./roles";
+import { DEFAULT_GROUPS_CLAIM, groupsFromClaims } from "./groups";
 
 /**
  * OIDC login, brokered by better-auth in **cookie mode** (no database) - the
@@ -11,7 +11,8 @@ import { DEFAULT_GROUPS_CLAIM, DEFAULT_ROLES_CLAIM, rolesFromClaims } from "./ro
  *
  * Provider-agnostic: any OpenID Connect provider with a discovery document works
  * (Keycloak, Auth0, Okta, Entra ID, Google, …). Point OIDC_ISSUER at it and set
- * OIDC_ROLES_CLAIM to wherever that provider puts roles in the token.
+ * OIDC_GROUPS_CLAIM to wherever that provider puts the user's groups in the
+ * token (Keycloak client roles by default).
  *
  * OIDC_INTERNAL_URL (optional) is the issuer URL as *this server* reaches it,
  * when that differs from the browser-facing OIDC_ISSUER (containers: the browser
@@ -35,10 +36,6 @@ const oidc = {
 };
 
 export const OIDC_DISCOVERY_URL = `${oidc.internalUrl ?? oidc.issuer}/.well-known/openid-configuration`;
-
-const ROLES_CLAIM = (
-  process.env.OIDC_ROLES_CLAIM || DEFAULT_ROLES_CLAIM
-).replace("${client_id}", oidc.clientId ?? "");
 
 const GROUPS_CLAIM = (
   process.env.OIDC_GROUPS_CLAIM || DEFAULT_GROUPS_CLAIM
@@ -64,7 +61,6 @@ function createAuth() {
     basePath: "/frontend-api/auth",
     user: {
       additionalFields: {
-        roles: { type: "json", fieldName: "roles" },
         groups: { type: "json", fieldName: "groups" },
       },
     },
@@ -92,11 +88,10 @@ function createAuth() {
             scopes: SCOPES,
             overrideUserInfo: true,
             getUserInfo: (tokens) => {
-              // Roles usually ride the access token; fall back to the id token.
+              // Groups usually ride the access token; fall back to the id token.
               const accessClaims = decodeClaims(tokens.accessToken);
               const claims = accessClaims ?? decodeClaims(tokens.idToken) ?? {};
-              const roles = rolesFromClaims(claims, ROLES_CLAIM);
-              const groups = rolesFromClaims(claims, GROUPS_CLAIM);
+              const groups = groupsFromClaims(claims, GROUPS_CLAIM);
 
               return Promise.resolve({
                 // `sub` (not `id`) is what better-auth's default accountSubject
@@ -113,20 +108,18 @@ function createAuth() {
                     "",
                 ),
                 emailVerified: claims.email_verified === true,
-                roles,
                 groups,
               } as GenericOAuthUserInfo);
             },
-            // Without this, `roles` on the object returned by getUserInfo above
+            // Without this, `groups` on the object returned by getUserInfo above
             // is silently dropped: better-auth only carries email/emailVerified/
             // image/name from the raw profile onto the user record by default,
             // then spreads mapProfileToUser's result on top for anything else -
             // if this isn't set, that's `{}`. This is what actually wires our
-            // custom `roles` additionalField.
+            // custom `groups` additionalField.
             mapProfileToUser: (profile) => {
-              const { roles, groups } = profile as { roles?: unknown; groups?: unknown };
-              const list = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
-              return { roles: list(roles), groups: list(groups) };
+              const groups = (profile as { groups?: unknown }).groups;
+              return { groups: Array.isArray(groups) ? groups.map(String) : [] };
             },
           },
         ],

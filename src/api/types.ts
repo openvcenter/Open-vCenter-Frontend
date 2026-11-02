@@ -637,19 +637,12 @@ export interface Role {
   permissionCount: number;
 }
 
-/** Permissions are granted to identity-provider roles and groups, never users. */
-export type PrincipalType = "role" | "group";
 export type PermissionScopeType = "global" | "cluster" | "host" | "folder" | "vm";
-
-export interface Principal {
-  type: PrincipalType;
-  id: string;
-}
 
 export interface Permission {
   id: string;
-  principalType: PrincipalType;
-  principalId: string;
+  /** The identity-provider group it is granted to (never a user). */
+  group: string;
   roleId: string;
   roleName: string;
   scopeType: PermissionScopeType;
@@ -678,7 +671,7 @@ export interface EffectiveLevel {
 }
 
 export interface EffectivePermissions {
-  principal: Principal;
+  group: string;
   superuser: boolean;
   visible: boolean;
   privileges: Privilege[];
@@ -690,9 +683,8 @@ export interface Me {
   id: string;
   email: string;
   displayName: string | null;
-  roles: string[];
   groups: string[];
-  /** Carries the admin role: every privilege everywhere. */
+  /** Member of the admin group: every privilege everywhere. */
   superuser: boolean;
   globalPrivileges: Privilege[];
 }
