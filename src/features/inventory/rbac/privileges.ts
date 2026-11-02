@@ -1,8 +1,8 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { getMyPrivileges } from "~/api/endpoints/rbac";
-import { rbacCatalogQuery } from "~/api/queries";
+import { foldersQuery, rbacCatalogQuery } from "~/api/queries";
 import { qk } from "~/api/queryKeys";
-import type { Privilege } from "~/api/types";
+import type { Folder, Privilege } from "~/api/types";
 import { useAuth } from "~/auth/useAuth";
 
 /**
@@ -23,6 +23,21 @@ export const objKey = (
   kind: "cluster" | "host" | "folder" | "vm",
   id: string,
 ): ObjKey => `${kind}:${id}`;
+
+/**
+ * Where a folder is managed from: its cluster or standalone host. Renaming or
+ * deleting a folder needs `folder.manage` there - a permission on the folder
+ * itself covers its VMs, never the folder (backend rule).
+ */
+export const folderOwnerKey = (folder: Pick<Folder, "clusterId" | "hostId">): ObjKey =>
+  folder.clusterId ? objKey("cluster", folder.clusterId) : objKey("host", folder.hostId!);
+
+/** `folderOwnerKey` for a folder id (null while the folder list loads). */
+export function useFolderOwnerKey(folderId: string | null | undefined): ObjKey | null {
+  const folders = useQuery({ ...foldersQuery({}), enabled: !!folderId });
+  const folder = folderId ? folders.data?.find((f) => f.id === folderId) : undefined;
+  return folder ? folderOwnerKey(folder) : null;
+}
 
 const MAX_IDS = 200;
 

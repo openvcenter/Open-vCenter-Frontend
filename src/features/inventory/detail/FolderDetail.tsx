@@ -12,7 +12,7 @@ import {
 import { FolderIcon } from '../tree/nodeIcons'
 import { organizeDialog } from '../organize/dialogStore'
 import { useInventorySelection } from '../selection'
-import { objKey, usePrivileges } from '../rbac/privileges'
+import { folderOwnerKey, objKey, useCan, usePrivileges } from '../rbac/privileges'
 import { PERMISSIONS_TAB } from '../rbac/objectTabs'
 import { PermissionsPanel } from '../rbac/PermissionsPanel'
 import { DetailHeader } from './DetailHeader'
@@ -30,6 +30,8 @@ export function FolderDetail({ folderId }: { folderId: string }) {
   const vms = useQuery(vmsQuery({ folderId }))
 
   const folder = folders.data?.find((f) => f.id === folderId)
+  // managed from its cluster / host, not from a permission on the folder itself
+  const canManage = useCan('folder.manage', folder ? folderOwnerKey(folder) : null)
   // a cluster folder spans hosts, so the grid shows which host runs each VM
   const hostNames = React.useMemo(
     () =>
@@ -58,7 +60,7 @@ export function FolderDetail({ folderId }: { folderId: string }) {
         actions={
           <Button
             className="min-w-0 px-2"
-            disabled={!privs.can('folder.manage')}
+            disabled={!canManage}
             onClick={() =>
               organizeDialog.open({ kind: 'delete-folder', folderId })
             }

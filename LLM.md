@@ -82,7 +82,7 @@ Companion docs: `CLAUDE.md` (short working summary of this file),
      Tag Management (`tag.manage`), Refresh (labelled F5; invalidates every query), Sign Out.
    - **Action**: Move VM to Folder (needs a VM selected with ≥ 1 reachable folder,
      `vm.config`), Move Host (a host selected, `host.manage` globally), Delete Folder (a
-     folder selected, `folder.manage`).
+     folder selected, `folder.manage` on its cluster / host).
    - **View**: Refresh, Events History (`audit.read`), VM Locks (`task.cancel`).
    - **Administration**: Roles, Global Permissions (both `rbac.manage`).
    - A privilege in brackets is held globally unless an object is named; without it
@@ -159,7 +159,7 @@ folder lists its VMs from any host, listed or not.
 | cluster                                                    | Layers · name · "N host(s) · M VM(s)"                                                          | **Hosts** (click or Enter on a row selects the host; Status shows `HostStatusLabel`) · **VM Startup Ordering** · **Virtual Networks** (cluster VLANs) · **Events** · **Permissions**                                                                                                  |
 | host whose agent was never seen (`agent.lastSeen == null`) | host icon · name · fqdn · Console                                                              | **Setup Agent** only (+ **Events** / **Permissions**)                                                                                                                                                                             |
 | host whose agent checked in at least once                  | host icon · name · fqdn · [Update Agent → vX] [Actions ▾] [Console]                            | **Summary** (Host Information + hardware) · **Virtual Machines** (ag-grid) · **Host Metrics** · **Configuration** (VM Startup Ordering, Network Adapters, Virtual Switches, Virtual Networks, Fibre Channel Adapters) · **Events** · **Permissions** |
-| folder                                                     | Folder · name · "Cluster: X" or "Host: Y" · Delete Folder (`folder.manage`)                    | **Virtual Machines** (VM count + `VmGrid` of `GET /vms?folderId=`: search, filters, batch power; a Host column on cluster folders) · **Permissions**                                                                              |
+| folder                                                     | Folder · name · "Cluster: X" or "Host: Y" · Delete Folder (`folder.manage` on its cluster / host) | **Virtual Machines** (VM count + `VmGrid` of `GET /vms?folderId=`: search, filters, batch power; a Host column on cluster folders) · **Permissions**                                                                              |
 | templatefolder                                             | Folder · "Templates" · scope                                                                   | template table (click or Enter on a row selects the template; an empty-state row when there are none)                                                                                                                           |
 | template                                                   | Package · name · "cluster › host" · Deploy new VM…                                             | property list + notes                                                                                                                                                                                                             |
 | vm                                                         | state icon · name · "state · firmware" (state in `text-fg`) · power buttons (Delete set apart by a separator), Refresh, More ▾, lock badge | **Summary** · **VM Metrics** (only when `metricsEnabled`) · **Snapshots** · **Console** (greyed out while Off / Paused, or without `vm.console`) · **Events** · **Permissions**                                       |
@@ -663,11 +663,13 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
     the scope); the VM wizard only offers hosts with `vm.create`;
   - Tag Management button in Assign Tags (`tag.manage`);
   - Events / Permissions tabs (see Detail pane).
-- **Self-management is global-only** (backend rule): creating, renaming, moving
-  and removing a host or a cluster, and host onboarding (Setup Agent data), need
-  the privilege **globally**. A permission on a host / cluster covers what is
-  inside it (VMs, folders, VLANs) and operating it (maintenance, console, agent
-  update), never the object itself.
+- **An object is managed from above it** (backend rule): creating, renaming,
+  moving and removing a host or a cluster, and host onboarding (Setup Agent
+  data), need the privilege **globally**; renaming or deleting a folder needs
+  `folder.manage` on its cluster / standalone host (or above) -
+  `rbac/privileges.ts` `folderOwnerKey`. A permission on a host / cluster /
+  folder covers what is inside it (and operating a host: maintenance, console,
+  agent update), never the object itself.
 - **Administration ▸ Roles** (`rbac/RolesDialog.tsx`): roles table (lock icon =
   built-in, "In use" = permission count) + Name / Description + one GroupBox of
   privilege checkboxes per privilege group. New, Clone ("<name> copy"), Delete

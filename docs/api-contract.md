@@ -95,11 +95,12 @@ identity or scope and only mirrors the result to grey items out.
   read of a host / cluster also works when the caller sees a VM on it (VM dialogs
   read the host). Forbidden calls return `403 FORBIDDEN` (`message` names the
   missing privilege).
-- **Self-management is global-only**: creating, renaming, moving and removing a
-  host or a cluster (and host onboarding: agent config / install URL) needs the
-  privilege **globally**. A permission on a host / cluster covers what is inside
-  it (VMs, folders, VLANs) and operating it (maintenance, console, agent
-  update), never the object itself.
+- **An object is managed from above it**: creating, renaming, moving and
+  removing a host or a cluster (and host onboarding: agent config / install URL)
+  needs the privilege **globally**; renaming or deleting a folder needs
+  `folder.manage` on its cluster / standalone host (or above). A permission on a
+  host / cluster / folder covers what is inside it (and operating a host:
+  maintenance, console, agent update), never the object itself.
 - Members of the `ADMINISTRATOR` group (`OVC_ADMIN_GROUP`) are superusers: every privilege
   everywhere, no permission row.
 - A signed-in user in **no group** is stopped at `/access-denied`
@@ -222,8 +223,8 @@ authenticated by a short-lived token in the URL:
 | PATCH  | `/hosts/:id`    | any subset of `{ name, fqdn, clusterId }`. Only keys present in the body are applied; `clusterId: null` → standalone; `fqdn` is normally left to the agent | `HostDetail`. `name` / `fqdn`: `host.config` (global); `clusterId`: `host.manage` (global). Changing `clusterId` clears every folder assignment for the host's VMs and drops any host-scoped folders |
 | DELETE | `/hosts/:id`    | - | `204`. `host.manage` (global). Cascades: the host's VM records, host-scoped folders, templates and ISOs are deleted. The host's RabbitMQ queues and agent user are torn down (best-effort). The virtualization host itself is not touched |
 | POST   | `/folders`      | `{ name, clusterId? \| hostId? }` (exactly one) | `201 Folder`. `folder.manage` on the cluster / host. `hostId` must be a **standalone** host |
-| PATCH  | `/folders/:id`  | `{ name }` | `Folder`. `folder.manage` |
-| DELETE | `/folders/:id`  | - | `204`. `folder.manage`. VMs in the folder are detached (`folderId → null`), not deleted |
+| PATCH  | `/folders/:id`  | `{ name }` | `Folder`. `folder.manage` on its cluster / host (not on the folder) |
+| DELETE | `/folders/:id`  | - | `204`. `folder.manage` on its cluster / host (not on the folder). VMs in the folder are detached (`folderId → null`), not deleted |
 | POST   | `/vlans`        | `{ name, vlanId, description?, isDefault?, clusterId? \| hostId? }` (exactly one scope) | `201 Vlan`. `host.config` on the cluster / host. `hostId` must be **standalone**. Setting `isDefault` clears it from every other VLAN in the scope |
 | PATCH  | `/vlans/:id`    | any subset of `{ name, description, isDefault }` (the tag is immutable) | `Vlan`. `host.config` |
 | DELETE | `/vlans/:id`    | - | `204`. `host.config`. VMs already tagged with it are not changed |

@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { MenuBar } from '~/components/win95'
 import type { MenuDef, MenuEntry } from '~/components/win95'
 import { useAuth } from '~/auth'
-import { objKey, useCan, usePrivileges } from './rbac/privileges'
+import { objKey, useCan, useFolderOwnerKey, usePrivileges } from './rbac/privileges'
 import { THEMES, TREE_BEHAVIORS, useTheme, useTreeBehavior } from '~/preferences'
 import { useInventorySelection } from './selection'
 import { organizeDialog } from './organize/dialogStore'
@@ -27,7 +27,7 @@ export function InventoryMenuBar() {
   const canMoveVm = useCan('vm.config', selection?.kind === 'vm' ? objKey('vm', selection.id) : null)
   const canDeleteFolder = useCan(
     'folder.manage',
-    selection?.kind === 'folder' ? objKey('folder', selection.id) : null,
+    useFolderOwnerKey(selection?.kind === 'folder' ? selection.id : null),
   )
   const vmFolders = useVmFolderTargets(selection?.kind === 'vm' ? selection.id : undefined)
   const { theme, setTheme } = useTheme()
