@@ -55,6 +55,10 @@ export interface HostHardwareInventory {
     driverDate?: string | null;
     driverProvider?: string | null;
     firmwareVersion?: string | null;
+    /** IPv6 (`ms_tcpip6`) binding; null = unknown. */
+    ipv6Enabled?: boolean | null;
+    /** VMQ state; null = not supported by the adapter (or unknown). */
+    vmqEnabled?: boolean | null;
   }>;
   /** Virtual switches / bridges defined on the host. */
   vSwitches?: Array<{
@@ -117,6 +121,43 @@ export interface Host {
 
 export interface HostDetail extends Host {
   hardware: HostHardwareInventory | null;
+  /** Host configuration values from the agent; null until first reported. */
+  settings?: HostSettings | null;
+}
+
+/** Host configuration values as the agent reports them (display only). Every
+ * block is null when the agent could not read it. */
+export interface HostSettings {
+  powerPlan?: { name: string; guid: string } | null;
+  /** Configured VBS / Memory Integrity (HVCI) state. */
+  coreIsolation?: { vbs: boolean; hvci: boolean } | null;
+  pageFile?: {
+    /** "Automatically manage paging file size for all drives". */
+    automatic: boolean;
+    files: Array<{
+      path: string;
+      initialMb: number;
+      maximumMb: number;
+      systemManaged: boolean;
+    }>;
+  } | null;
+  wirelessLan?: { installed: boolean } | null;
+  /** Tcpip6 DisabledComponents mask: 0 enabled, 255 disabled, 32 prefer IPv4. */
+  ipv6?: { disabledComponents: number } | null;
+  hyperv?: {
+    numaSpanning: boolean;
+    enhancedSessionMode: boolean;
+    liveMigration: {
+      enabled: boolean;
+      maxVmMigrations: number;
+      maxStorageMigrations: number;
+      useAnyNetwork: boolean;
+      /** "CredSSP" | "Kerberos" */
+      authentication: string;
+      /** "TCPIP" | "Compression" | "SMB" */
+      performance: string;
+    };
+  } | null;
 }
 
 /** `GET /hosts/:id/agent-config` - onboarding info for a not-yet-connected host. */
@@ -415,7 +456,10 @@ export interface HostMetricSample {
     /** one entry per physical disk ("0 C:"). */
     disks?: Array<
       MetricDiskIo & {
+        /** volume: "C:", or a CSV mount path. */
         name: string;
+        /** volume label, or the CSV name; absent when it has none. */
+        label?: string;
         readLatencyMs?: number | null;
         writeLatencyMs?: number | null;
         queueLength?: number | null;

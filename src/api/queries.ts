@@ -1,4 +1,4 @@
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { getCluster, getClusters } from "./endpoints/clusters";
 import {
   getHost,
@@ -87,11 +87,14 @@ export const hostVmsQuery = (id: string) =>
     refetchInterval: INTERVAL.vms,
   });
 
-export const hostMetricsQuery = (id: string) =>
+/** `seconds`: the range picked in the metrics tab; a new range keeps the
+ *  previous samples on screen until it loads. */
+export const hostMetricsQuery = (id: string, seconds: number) =>
   queryOptions({
-    queryKey: qk.hostMetrics(id),
-    queryFn: ({ signal }) => getHostMetrics(id, signal),
+    queryKey: qk.hostMetrics(id, seconds),
+    queryFn: ({ signal }) => getHostMetrics(id, seconds, signal),
     refetchInterval: INTERVAL.metrics,
+    placeholderData: keepPreviousData,
   });
 
 export const hostTemplatesQuery = (id: string) =>
@@ -162,11 +165,12 @@ export const vmQuery = (id: string) =>
     refetchInterval: INTERVAL.vms,
   });
 
-export const vmMetricsQuery = (id: string) =>
+export const vmMetricsQuery = (id: string, seconds: number) =>
   queryOptions({
-    queryKey: qk.vmMetrics(id),
-    queryFn: ({ signal }) => getVmMetrics(id, signal),
+    queryKey: qk.vmMetrics(id, seconds),
+    queryFn: ({ signal }) => getVmMetrics(id, seconds, signal),
     refetchInterval: INTERVAL.metrics,
+    placeholderData: keepPreviousData,
   });
 
 /** Last console thumbnail (`null` = none captured yet). No polling: the agent

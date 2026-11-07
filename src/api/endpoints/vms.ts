@@ -24,9 +24,10 @@ export const getVms = (params: VmListParams = {}, signal?: AbortSignal) =>
 export const getVm = (id: string, signal?: AbortSignal) =>
   request<Vm>(`/vms/${id}`, { signal });
 
-/** Quick VM metrics for the last hour, oldest first. `[]` until metering is on. */
-export const getVmMetrics = (id: string, signal?: AbortSignal) =>
-  request<VmMetricSample[]>(`/vms/${id}/metrics`, { signal });
+/** Quick VM metrics for the last `seconds` (capped at the retention window),
+ *  oldest first. Only windows in which the VM ran. */
+export const getVmMetrics = (id: string, seconds: number, signal?: AbortSignal) =>
+  request<VmMetricSample[]>(`/vms/${id}/metrics`, { query: { seconds }, signal });
 
 export interface VmThumbnail {
   /** JPEG, 320x240 */

@@ -13,6 +13,7 @@ type Row = { label: string; value: ReactNode };
 const dash = (v: ReactNode) => (v === null || v === undefined || v === "" ? "-" : v);
 const rows = (items: Row[]) => items.map((r) => ({ ...r, value: dash(r.value) }));
 const yesNo = (v: boolean | null | undefined) => (v == null ? "-" : v ? "Yes" : "No");
+const enabled = (v: boolean | null | undefined) => (v == null ? null : v ? "Enabled" : "Disabled");
 const mono = (v: string | null | undefined) =>
   v ? <span className="font-mono">{v}</span> : null;
 
@@ -51,6 +52,8 @@ export function HostNetworkAdaptersPanel({
               { label: "Driver provider", value: n.driverProvider },
               { label: "Driver date", value: n.driverDate },
               { label: "Firmware version", value: n.firmwareVersion },
+              { label: "IPv6", value: enabled(n.ipv6Enabled) },
+              { label: "VMQ", value: enabled(n.vmqEnabled) },
             ])}
           />
         </GroupBox>

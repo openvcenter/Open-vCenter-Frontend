@@ -159,7 +159,7 @@ folder lists its VMs from any host, listed or not.
 | none                                                       | -                                                                                              | `EmptyDetail`: "Select a cluster, host, or virtual machine."                                                                                                                                                                      |
 | cluster                                                    | Layers · name · "N host(s) · M VM(s)"                                                          | **Hosts** (click or Enter on a row selects the host; Status shows `HostStatusLabel`) · **VM Startup Ordering** · **Virtual Networks** (cluster VLANs) · **Events** · **Permissions**                                                                                                  |
 | host whose agent was never seen (`agent.lastSeen == null`) | host icon · name · fqdn · Console                                                              | **Setup Agent** only (+ **Events** / **Permissions**)                                                                                                                                                                             |
-| host whose agent checked in at least once                  | host icon · name · fqdn · [Update Agent → vX] [Actions ▾] [Console]                            | **Summary** (Host Information + hardware) · **Virtual Machines** (ag-grid) · **Host Metrics** · **Configuration** (VM Startup Ordering, Network Adapters, Virtual Switches, Virtual Networks, Fibre Channel Adapters) · **Events** · **Permissions** |
+| host whose agent checked in at least once                  | host icon · name · fqdn · [Update Agent → vX] [Actions ▾] [Console]                            | **Summary** (Host Information + hardware) · **Virtual Machines** (ag-grid) · **Host Metrics** · **Configuration** (VM Startup Ordering, Host Settings, Network Adapters, Virtual Switches, Virtual Networks, Fibre Channel Adapters) · **Events** · **Permissions** |
 | folder                                                     | Folder · name · "Cluster: X" or "Host: Y" · Rename Folder, Delete Folder (both `folder.manage` on its cluster / host) | **Virtual Machines** (VM count + `VmGrid` of `GET /vms?folderId=`: search, filters, batch power; a Host column on cluster folders) · **Permissions**                                                                              |
 | templatefolder                                             | Folder · "Templates" · scope                                                                   | template table (click or Enter on a row selects the template; an empty-state row when there are none)                                                                                                                           |
 | template                                                   | Package · name · "cluster › host" · Deploy new VM…                                             | property list + notes                                                                                                                                                                                                             |
@@ -172,6 +172,14 @@ automatic start come last, unnumbered. The cluster tab loads its VMs per member 
 (`hostVmsQuery`), never the whole fleet, and adds HA and Host columns; inside a
 host's Configuration the Host column is hidden (`showHost={false}`), since every
 row is that host.
+
+**Host Settings** (host ▸ Configuration, `panels/HostSettingsPanel.tsx`) shows
+`host.settings` read-only in two group boxes: System (power plan, VBS, memory
+integrity, page file, Wireless LAN service, host-wide IPv6) and Hyper-V (NUMA
+spanning, enhanced session mode, live migration settings). Values only - no
+pass/fail colours or icons. The agent reports them every 30 min; "not reported yet"
+while `settings` is null. **Network Adapters** also shows per-NIC IPv6 and VMQ
+(`Enabled` / `Disabled`, "-" when unknown or VMQ is not supported).
 
 Metric charts (`panels/MetricChart.tsx`) keep a fixed 56 px, no-wrap y-axis gutter
 so unit labels like "2.4 MB/s" never wrap or clip; the time axis and legend are
@@ -354,7 +362,7 @@ To add a call:
 |              | `DELETE /clusters/:id`                                                  | - (empty cluster only)                                                                                               | `204`                                                  |
 | hosts        | `GET /hosts`                                                            | `?clusterId`                                                                                                         | `Host[]`                                               |
 |              | `GET /hosts/:id`                                                        | -                                                                                                                    | `HostDetail` (+ `hardware`)                            |
-|              | `GET /hosts/:id/vms` · `/metrics` · `/templates` · `/isos`              | -                                                                                                                    | `Vm[]` · `HostMetricSample[]` · `Template[]` · `Iso[]` |
+|              | `GET /hosts/:id/vms` · `/metrics?seconds` · `/templates` · `/isos`      | -                                                                                                                    | `Vm[]` · `HostMetricSample[]` · `Template[]` · `Iso[]` |
 |              | `GET /hosts/:id/agent-config` (`host.manage`, global)                   | -                                                                                                                    | `HostAgentConfig`                                      |
 |              | `GET /hosts/:id/agent-install-url` (`host.manage`, global)              | -                                                                                                                    | `HostAgentInstall`                                     |
 |              | `POST /hosts`                                                           | `{ name, clusterId }`                                                                                                | `HostDetail`                                           |
@@ -369,7 +377,7 @@ To add a call:
 |              | `POST /vlans`                                                           | `{ name, vlanId, description?, isDefault?, clusterId? \| hostId? }`                                                  | `Vlan`                                                 |
 |              | `PATCH /vlans/:id` · `DELETE /vlans/:id`                                | any of `{ name, description, isDefault }` · -                                                                        | `Vlan` · `204`                                         |
 | vms          | `GET /vms`                                                              | `?hostId&folderId&state`                                                                                             | `Vm[]`                                                 |
-|              | `GET /vms/:id` · `GET /vms/:id/metrics`                                 | -                                                                                                                    | `Vm` · `VmMetricSample[]`                              |
+|              | `GET /vms/:id` · `GET /vms/:id/metrics?seconds`                         | -                                                                                                                    | `Vm` · `VmMetricSample[]`                              |
 |              | `GET /vms/:id/thumbnail` (`requestBlob`)                                | -                                                                                                                    | JPEG + `X-Captured-At`; 404 → `null` (no capture yet)  |
 |              | `POST /vms`                                                             | `VmCreateBody`                                                                                                       | `201 { vm, task }`                                     |
 |              | `POST /vms/clone`                                                       | `VmCloneBody` (`source: 'vm' \| 'template'`)                                                                         | `202 { vm, task }`                                     |
@@ -439,13 +447,13 @@ task whose agent never answers still ends as `timeout` through the backend sweep
 | Data                                   | Key                                                                              | Refetch                                |
 | -------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------- |
 | clusters / cluster                     | `['clusters']` / `['clusters', id]`                                              | 30 s                                   |
-| hosts / host / host VMs / host metrics | `['hosts', {clusterId}]` / `['hosts', id]` / `[… , 'vms']` / `[…, 'metrics']`    | 15 s (host VMs 10 s; host metrics 30 s; a host 5 s while its Setup Agent tab is open) |
+| hosts / host / host VMs / host metrics | `['hosts', {clusterId}]` / `['hosts', id]` / `[… , 'vms']` / `[…, 'metrics', seconds]` | 15 s (host VMs 10 s; host metrics 30 s; a host 5 s while its Setup Agent tab is open) |
 | host templates / ISOs                  | `['hosts', id, 'templates' \| 'isos']`                                           | no polling                             |
 | agent config / install URL             | `['hosts', id, 'agent-config' \| 'agent-install']`                               | staleTime 5 min / 30 s (tokenized URL) |
 | folders                                | `['folders', params]`                                                            | 15 s                                   |
 | vlans                                  | `['vlans', params]`                                                              | no polling                             |
 | tags / tag categories                  | `['tags']` / `['tag-categories']`                                                | 30 s                                   |
-| vms / vm / vm metrics / locks          | `['vms', params]` / `['vms', id]` / `['vms', id, 'metrics']` / `['vms','locks']` | 10 s (vm metrics 30 s)                 |
+| vms / vm / vm metrics / locks          | `['vms', params]` / `['vms', id]` / `['vms', id, 'metrics', seconds]` / `['vms','locks']` | 10 s (vm metrics 30 s)                 |
 | vm console thumbnail                   | `['vms', id, 'thumbnail', lastSeen]`                                             | none - refetched when `lastSeen` moves |
 | task                                   | `['tasks', id]`                                                                  | 1.5 s until terminal                   |
 | recent tasks (dock)                    | `['tasks', {}]`                                                                  | 1.5 s while any active, else 4 s       |
@@ -1078,10 +1086,23 @@ Every item is also greyed out without its privilege (Access control).
     Dynamic Memory reports it), network rx/tx, and Disk (`panels/DiskMetricCharts.tsx`):
     throughput and IOPS (read / write), latency (host: read / write + dashed peak;
     VM: one IOPS-weighted line).
-  - The Disk selector picks all disks or one (`detail.disks`: host by name, VM by
+  - The Disk selector (shown with two or more disks) picks all disks or one
+    (`detail.disks`: host by volume - `C:`, `D:`, a CSV path - shown with its
+    `label` when the agent sends one, e.g. `C: (SYSTEM)` or the CSV name; VM by
     VHD path, shown as the file name).
-- Both show the metrics retention window (Application Preferences ▸ General),
-  oldest first. Charts spanning over a day add the date to time labels.
+    "All" draws one colour per disk, read solid and write dashed; with a single
+    disk it draws the totals in the read / write colours (host: + peak latency).
+- Both load the last hour by default (`?seconds=`, oldest first). When the
+  metrics retention (Application Preferences ▸ General) is over an hour, a range
+  bar on top (`panels/MetricsRangeBar.tsx`) offers `1h | 2h | 6h | 12h | 1d | 3d`
+  (those shorter than the retention) and **All** (the retention); the range
+  isn't persisted. Charts spanning over a day add the date to time labels.
+- Zoom: dragging across any chart zooms every chart in the tab to that period
+  (`MetricZoomContext`, kept as timestamps, so polling doesn't move it). The bar
+  then shows "Zoomed: from → to" and **Reset zoom**; a double-click on a chart
+  also resets. Picking a range clears the zoom. The bar scrolls with the tab;
+  once it is out of view, its range buttons (and Reset zoom when zoomed) float
+  in the tab's top-left corner, and hide again when the bar is back in view.
 
 ### Host operations (`detail/HostActionsMenu.tsx`)
 
@@ -1372,7 +1393,7 @@ src/
       panels/                 VmSummary, VmMetrics, VmSnapshots, VmConsole, VmTasks
                               (TasksPanel), HostHardware(+Details), HostMetrics,
                               HostConfiguration, HostSetupAgent, HostConsole,
-                              VirtualNetworks, VmStartupOrdering, SectionList, MetricChart,
+                              VirtualNetworks, VmStartupOrdering, SectionList, MetricChart, MetricsRangeBar,
                               GuacamoleConsole, ConsoleVmActions, webrdp.ts, rdpFile.ts
     actions/                  powerActions, useVmPowerAction, useVmBatchPowerAction,
                               useVmManagementAction, useVmActionBlock, TaskWatcher,

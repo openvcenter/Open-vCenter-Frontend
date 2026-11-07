@@ -119,8 +119,9 @@ See [`src/api/types.ts`](../src/api/types.ts) for the exact TypeScript shapes. S
 | `Cluster`               | `id, name, hypervisor, hostCount, vmCount` |
 | `Host`                  | `id, shortId, clusterId, name, fqdn, ipAddress, hypervisor, online, agent, vmCount`. `fqdn` / `ipAddress` are `string \| null`, resolved by the agent (null until it first checks in) |
 | `HostAgentStatus`       | `version, lastSeen, connected, refreshIntervals {vm,host}` |
-| `HostHardwareInventory` | `cpu {model,sockets,cores,logical}`, `memoryBytes`, `storage[] {path,label?,totalBytes,freeBytes}`, `os {caption,version}`, `network[]` (every physical NIC: `name, description?, mac, speedBps, connected?, status?, linkSpeed?, driver*?, firmwareVersion?`), `vSwitches[]` (`name, id?, type, netAdapter?, allowManagementOS?, embeddedTeaming?, teamMembers?, loadBalancingAlgorithm?, bandwidthReservationMode?`), `hbas[]` (Fibre Channel, best-effort), `system {manufacturer,model}?`, `bootTime?` (derive uptime), `load {cpuPercent,memoryPercent}?` (snapshot, not live), `cluster {clustered,name?,state,nodes[]}?` (the Windows Failover Cluster, **not** `clusterId`), `hyperv {defaultVmPath,defaultVhdPath}?`. From `host_hwinventory` |
-| `HostDetail`            | `Host & { hardware: HostHardwareInventory \| null }` |
+| `HostHardwareInventory` | `cpu {model,sockets,cores,logical}`, `memoryBytes`, `storage[] {path,label?,totalBytes,freeBytes}`, `os {caption,version}`, `network[]` (every physical NIC: `name, description?, mac, speedBps, connected?, status?, linkSpeed?, driver*?, firmwareVersion?, ipv6Enabled?, vmqEnabled?` - the last two null when unknown / VMQ unsupported), `vSwitches[]` (`name, id?, type, netAdapter?, allowManagementOS?, embeddedTeaming?, teamMembers?, loadBalancingAlgorithm?, bandwidthReservationMode?`), `hbas[]` (Fibre Channel, best-effort), `system {manufacturer,model}?`, `bootTime?` (derive uptime), `load {cpuPercent,memoryPercent}?` (snapshot, not live), `cluster {clustered,name?,state,nodes[]}?` (the Windows Failover Cluster, **not** `clusterId`), `hyperv {defaultVmPath,defaultVhdPath}?`. From `host_hwinventory` |
+| `HostDetail`            | `Host & { hardware: HostHardwareInventory \| null, settings: HostSettings \| null }` |
+| `HostSettings`          | Host configuration values, display only (from the agent's `settings_inventory`, every 30 min; null until first reported). Every block nullable: `powerPlan {name,guid}`, `coreIsolation {vbs,hvci}` (configured state), `pageFile {automatic, files[] {path,initialMb,maximumMb,systemManaged}}`, `wirelessLan {installed}`, `ipv6 {disabledComponents}` (Tcpip6 mask: 0 enabled, 255 disabled, 32 prefer IPv4), `hyperv {numaSpanning, enhancedSessionMode, liveMigration {enabled,maxVmMigrations,maxStorageMigrations,useAnyNetwork,authentication,performance}}` |
 | `HostAgentConfig`       | `hostId, rabbitmqUrl, configIni, filename`: the agent's `config.ini` for onboarding. `hostId` is the host **shortId** (the agent's queue prefix); the RabbitMQ URL carries per-host credentials |
 | `HostAgentInstall`      | `url, command, expiresAt, filename`: a tokenized `install.ps1` URL plus a paste-ready elevated-PowerShell one-liner |
 | `Folder`                | `id, name, clusterId, hostId`: a logical VM folder, **application-managed** (not agent-reported). Scoped to exactly one of a cluster or a standalone host. Flat (no nesting) |
@@ -185,7 +186,7 @@ Notes on the task fields:
 | GET    | `/hosts/:id/vms`          | -                                         | `Vm[]` |
 | GET    | `/hosts/:id/templates`    | -                                         | `Template[]` |
 | GET    | `/hosts/:id/isos`         | -                                         | `Iso[]` |
-| GET    | `/hosts/:id/metrics`      | -                                         | `HostMetricSample[]`: the metrics retention window (`AppSettings`), oldest first |
+| GET    | `/hosts/:id/metrics`      | `?seconds` (≥ 60, optional)               | `HostMetricSample[]`: the last `seconds`, capped at the metrics retention window (`AppSettings`; the whole window when omitted), oldest first |
 | GET    | `/hosts/:id/agent-config` | -                                         | `HostAgentConfig`. `host.manage` (global; carries RabbitMQ credentials). Re-asserts the host's RabbitMQ user on every call |
 | GET    | `/hosts/:id/agent-install-url` | -                                    | `HostAgentInstall`. `host.manage` (global). Mints a short-lived HMAC-tokenized `agent-install.ps1` URL (TTL `OVC_AGENT_INSTALL_URL_TTL_SECONDS`). Used by the "Setup Agent" tab |
 | GET    | `/folders`                | `hostId?`, `clusterId?`                   | `Folder[]` (no filter → every folder the caller may see) |
@@ -194,7 +195,7 @@ Notes on the task fields:
 | GET    | `/tags`                   | -                                         | `Tag[]`: categorized tags (by category name, then tag name), then standalone tags. Any role |
 | GET    | `/vms`                    | `hostId?`, `folderId?`, `state?`          | `Vm[]` |
 | GET    | `/vms/:id`                | -                                         | `Vm` |
-| GET    | `/vms/:id/metrics`        | -                                         | `VmMetricSample[]`: the metrics retention window, oldest first. Only windows in which the VM ran |
+| GET    | `/vms/:id/metrics`        | `?seconds` (≥ 60, optional)               | `VmMetricSample[]`: the last `seconds`, capped at the metrics retention window, oldest first. Only windows in which the VM ran |
 | GET    | `/vms/:id/console`        | -                                         | `ConsoleTarget` `{ hostname, port: 2179, vmGuid }`. `vm.console`. `409 CONSOLE_UNAVAILABLE` when the VM isn't reported yet or the host has no address. Called by the console panel and, server-side, by the Guacamole tunnel |
 | GET    | `/hosts/:id/console`      | -                                         | `ConsoleTarget` `{ hostname, port: 3389, vmGuid: null }`. `host.console`. Same `409` |
 | GET    | `/vms/:id/thumbnail`      | -                                         | `image/jpeg` (320x240): last console frame the agent captured. Only Running VMs are captured, so an Off VM serves its last image. `X-Captured-At` = capture time (ISO 8601; the frontend proxy passes it through); `Cache-Control: private, max-age=60`. 404 `NOT_FOUND` until a first capture (the UI shows "No preview") |
@@ -556,12 +557,15 @@ interval (`AppSettings.metricsIntervalSeconds`, default 5 min). Each value is th
 mean over that window; `cpuMaxPercent` (and the host's `detail.diskLatencyMaxMs`)
 is its peak. Rates are already per second (bytes/s, IO/s), latencies are in ms -
 no client-side deltas. The backend keeps the metrics retention window
-(`AppSettings.metricsRetentionSeconds`, default 1 h), oldest first.
+(`AppSettings.metricsRetentionSeconds`, default 1 h), oldest first. Both
+endpoints take `?seconds=` to return only the last part of it; the frontend asks
+for 1 h by default and more when the user picks a range.
 
 - `GET /hosts/:id/metrics`: CPU % (hypervisor logical processors), memory %,
   disk read/write bytes/s, IOPS and latency, network rx/tx bytes/s.
   `detail` carries `memUsedBytes`, `memTotalBytes`, `diskLatencyMaxMs`,
-  `disks[] {name,readBps,writeBps,readIops,writeIops,readLatencyMs,writeLatencyMs,queueLength,busyPercent}`
+  `disks[] {name,label?,readBps,writeBps,readIops,writeIops,readLatencyMs,writeLatencyMs,queueLength,busyPercent}`
+  (`name` = volume, `C:` or a CSV mount path; `label` = volume label or CSV name)
   and `net[] {name,rxBps,txBps}`.
 - `GET /vms/:id/metrics`: every VM, but only while it runs. CPU % (average over its
   virtual processors), memory bytes, `memPressure` (Dynamic Memory, else `null`),
@@ -571,7 +575,8 @@ no client-side deltas. The backend keeps the metrics retention window
 
 The frontend shows them in the **Host Metrics** tab (once the agent has checked in)
 and the **VM Metrics** tab (always): Processor (average + dashed peak), Memory,
-Network and Disk (throughput, IOPS, latency; a selector picks one disk).
+Network and Disk (throughput, IOPS, latency; a selector picks one disk), with a
+time range bar and drag-to-zoom.
 
 ---
 
