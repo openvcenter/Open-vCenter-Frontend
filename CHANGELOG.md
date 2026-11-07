@@ -8,6 +8,8 @@ All notable changes to ovc-frontend. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-07
+
 ### Added
 
 - Administration ▸ Application Preferences (needs ovc-backend `/settings`):
@@ -236,7 +238,8 @@ All notable changes to ovc-frontend. The format follows
 
 First public release.
 
-[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.5.0...HEAD
+[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.6.0...HEAD
+[0.6.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.5.0...0.6.0
 [0.5.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.4.1...0.5.0
 [0.4.1]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.4.0...0.4.1
 [0.4.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.3.0...0.4.0
