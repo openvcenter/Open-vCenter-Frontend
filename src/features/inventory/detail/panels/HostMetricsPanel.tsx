@@ -1,12 +1,13 @@
+import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { GroupBox } from '~/components/win95'
 import type { HostMetricSample } from '~/api/types'
-import { hostMetricsQuery } from '~/api/queries'
-import { bytes, percent, relTime } from '../../format'
+import { hostMetricsQuery, settingsQuery } from '~/api/queries'
+import { bytes, intervalLabel, metricsKeptText, percent, relTime } from '../../format'
 import { MetricChart } from './MetricChart'
+import { ALL_DISKS, DiskMetricCharts, bytesPerSec } from './DiskMetricCharts'
 
-const bytesPerSec = (v: number) => `${bytes(v)}/s`
-const ms = (v: number) => `${v < 10 ? v.toFixed(1) : Math.round(v)} ms`
+type HostDisk = NonNullable<NonNullable<HostMetricSample['detail']>['disks']>[number]
 
 const gauge = (
   samples: HostMetricSample[],
@@ -15,6 +16,8 @@ const gauge = (
 
 export function HostMetricsPanel({ hostId }: { hostId: string }) {
   const q = useQuery(hostMetricsQuery(hostId))
+  const settings = useQuery(settingsQuery())
+  const [disk, setDisk] = React.useState(ALL_DISKS)
   const samples = q.data ?? []
 
   if (q.isLoading && !q.data) {
@@ -22,11 +25,14 @@ export function HostMetricsPanel({ hostId }: { hostId: string }) {
   }
 
   if (samples.length === 0) {
+    const every = settings.data
+      ? `every ${intervalLabel(settings.data.metricsIntervalSeconds)}`
+      : 'periodically'
     return (
       <GroupBox label="Host Metrics">
         <p>
-          No samples yet. The host agent posts a metrics sample every few minutes;
-          the last hour is kept.
+          No samples yet. The host agent posts a metrics sample {every};{' '}
+          {metricsKeptText(settings.data?.metricsRetentionSeconds)}.
         </p>
       </GroupBox>
     )
@@ -40,6 +46,17 @@ export function HostMetricsPanel({ hostId }: { hostId: string }) {
   const memBytes = gauge(samples, (s) => s.detail?.memUsedBytes)
   const hasMemBytes = memBytes.some((v) => v != null)
   const memTotal = Math.max(0, ...samples.map((s) => s.detail?.memTotalBytes ?? 0))
+
+  const diskNames = [
+    ...new Set(samples.flatMap((s) => (s.detail?.disks ?? []).map((d) => d.name))),
+  ].sort()
+  const selected = diskNames.includes(disk) ? disk : ALL_DISKS
+  const one = (pick: (d: HostDisk) => number | null | undefined) =>
+    gauge(samples, (s) => {
+      const d = s.detail?.disks?.find((x) => x.name === selected)
+      return d ? pick(d) : null
+    })
+  const all = selected === ALL_DISKS
 
   return (
     <div className="flex flex-col gap-3">
@@ -55,9 +72,15 @@ export function HostMetricsPanel({ hostId }: { hostId: string }) {
           format={(v) => percent(v)}
           series={[
             {
-              label: 'CPU',
+              label: 'Average',
               color: 'var(--color-chart-1)',
               values: gauge(samples, (s) => s.cpuPercent),
+            },
+            {
+              label: 'Peak',
+              color: 'var(--color-chart-1)',
+              dashed: true,
+              values: gauge(samples, (s) => s.cpuMaxPercent),
             },
           ]}
         />
@@ -99,20 +122,45 @@ export function HostMetricsPanel({ hostId }: { hostId: string }) {
         />
       </GroupBox>
 
-      <GroupBox label="Disk">
-        <MetricChart
-          title="Disk latency"
-          times={times}
-          format={ms}
-          series={[
+      <DiskMetricCharts
+        times={times}
+        disks={diskNames.map((n) => ({ value: n, label: n }))}
+        disk={selected}
+        onDiskChange={setDisk}
+        allLabel="All disks"
+        series={{
+          readBps: all ? gauge(samples, (s) => s.diskReadBps) : one((d) => d.readBps),
+          writeBps: all ? gauge(samples, (s) => s.diskWriteBps) : one((d) => d.writeBps),
+          readIops: all ? gauge(samples, (s) => s.diskReadIops) : one((d) => d.readIops),
+          writeIops: all ? gauge(samples, (s) => s.diskWriteIops) : one((d) => d.writeIops),
+          latency: [
             {
-              label: 'Avg latency',
+              label: 'Read',
               color: 'var(--color-chart-5)',
-              values: gauge(samples, (s) => s.diskLatencyMs),
+              values: all
+                ? gauge(samples, (s) => s.diskReadLatencyMs)
+                : one((d) => d.readLatencyMs),
             },
-          ]}
-        />
-      </GroupBox>
+            {
+              label: 'Write',
+              color: 'var(--color-chart-2)',
+              values: all
+                ? gauge(samples, (s) => s.diskWriteLatencyMs)
+                : one((d) => d.writeLatencyMs),
+            },
+            ...(all
+              ? [
+                  {
+                    label: 'Peak',
+                    color: 'var(--color-chart-5)',
+                    dashed: true,
+                    values: gauge(samples, (s) => s.detail?.diskLatencyMaxMs),
+                  },
+                ]
+              : []),
+          ],
+        }}
+      />
     </div>
   )
 }

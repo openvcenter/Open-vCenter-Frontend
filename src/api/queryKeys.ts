@@ -54,6 +54,8 @@ export const qk = {
   vmConsole: (id: string) => ['vms', id, 'console'] as const,
   hostConsole: (id: string) => ['hosts', id, 'console'] as const,
 
+  settings: () => ['settings'] as const,
+
   agentBinaries: () => ['agent-binaries'] as const,
   agentStorage: () => ['agent-binaries', 'storage'] as const,
 }

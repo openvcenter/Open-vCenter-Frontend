@@ -42,7 +42,8 @@ guacamole-common-js · react-resizable-panels **v3** (pinned).
   dialog), `detail/` (per-entity views, `VmActionsBar`, `HostActionsMenu`,
   `vmActions/`, `panels/`), `organize/` (dialogs, mutations, folder scope),
   `create/` (VM wizard), `actions/` (power, tasks, status bar), `tasks/`, `locks/`,
-  `events/` (audit log), `rbac/` (privilege hooks, Roles, Permissions tab).
+  `events/` (audit log), `rbac/` (privilege hooks, Roles, Permissions tab),
+  `appPreferences/` (Application Preferences dialog).
 - `src/components/win95/`: UI primitives. `src/auth/`: all auth logic.
   `src/preferences/`: theme + tree behaviour cookies. `src/styles/`: tokens + themes.
 
@@ -148,9 +149,12 @@ guacamole-common-js · react-resizable-panels **v3** (pinned).
 - **Access control**: privileges → roles → permissions granted to identity-provider
   groups (never users; read at `OIDC_GROUPS_CLAIM`) on global, clusters, hosts, folders and VMs. Lists
   show only granted objects - a folder or VM without a visible parent sits at the
-  tree root. The `ADMINISTRATOR` group is a superuser. Administration ▸ Roles / Global
-  Permissions and a **Permissions** tab per object need `rbac.manage`. Login needs
-  at least one group (`/access-denied` otherwise).
+  tree root. The `ADMINISTRATOR` group is a superuser. The Roles / Global
+  Permissions tabs of Application Preferences and a **Permissions** tab per object
+  need `rbac.manage`. Login needs at least one group (`/access-denied` otherwise).
+- **Application Preferences** (Administration menu): General (`settings.manage`:
+  VM console for non-Hyper-V admins, metrics interval and retention), Roles and Global
+  Permissions (`rbac.manage`).
 - **Audit log** (`audit.read`): View ▸ Events History and an **Events** tab on
   clusters, hosts and VMs (`GET /audit-events`, cursor-paged). Every successful
   mutation invalidates `['audit-events']` and `['me']` (router `MutationCache`).

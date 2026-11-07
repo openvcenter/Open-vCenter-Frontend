@@ -1,5 +1,6 @@
 import type { AuditEvent, AuditOutcome, AuditTargetType } from "~/api/types";
 import { STATUS_TEXT, statusClass } from "../tasks/taskLabels";
+import { intervalLabel, retentionLabel } from "../format";
 
 // keyed by the event's `action` - see ovc-backend services/audit.py callers and
 // docs/api-contract.md › Audit log for the catalog.
@@ -35,8 +36,6 @@ const ACTION_LABELS: Record<string, string> = {
   "vm.snapshot_create": "Create Snapshot",
   "vm.snapshot_remove": "Delete Snapshot",
   "vm.snapshot_restore": "Restore Snapshot",
-  "vm.enable_metrics": "Enable Metrics",
-  "vm.disable_metrics": "Disable Metrics",
   // --- hosts ---
   "host.create": "Add Host",
   "host.update": "Edit Host",
@@ -76,6 +75,8 @@ const ACTION_LABELS: Record<string, string> = {
   "permission.create": "Add Permission",
   "permission.update": "Edit Permission",
   "permission.delete": "Remove Permission",
+  // --- application settings ---
+  "settings.update": "Change Application Preferences",
 };
 
 export function eventLabel(action: string): string {
@@ -93,6 +94,7 @@ export const TARGET_TYPE_LABEL: Record<AuditTargetType, string> = {
   agent_binary: "Agent Build",
   role: "Role",
   permission: "Permission",
+  settings: "Application Preferences",
 };
 
 export const OUTCOME_TEXT: Record<AuditOutcome, string> = {
@@ -128,6 +130,15 @@ const FIELD_LABELS: Record<string, string> = {
   role: "Role",
   propagate: "Propagate",
   privileges: "Privileges",
+  metricsRetentionSeconds: "Metrics retention",
+  metricsIntervalSeconds: "Metrics interval",
+  vmConsoleNonAdminAccess: "VM console for non-administrators",
+};
+
+/** Fields whose raw value needs a unit to read well. */
+const FIELD_FORMAT: Record<string, (v: unknown) => string> = {
+  metricsRetentionSeconds: (v) => (typeof v === "number" ? retentionLabel(v) : formatValue(v)),
+  metricsIntervalSeconds: (v) => (typeof v === "number" ? intervalLabel(v) : formatValue(v)),
 };
 
 function formatValue(v: unknown): string {
@@ -158,7 +169,7 @@ export function eventSummary(e: AuditEvent): string {
     return Object.keys(after)
       .map(
         (k) =>
-          `${FIELD_LABELS[k] ?? k}: ${formatValue(before[k])} → ${formatValue(after[k])}`,
+          `${FIELD_LABELS[k] ?? k}: ${(FIELD_FORMAT[k] ?? formatValue)(before[k])} → ${(FIELD_FORMAT[k] ?? formatValue)(after[k])}`,
       )
       .join("; ");
   }

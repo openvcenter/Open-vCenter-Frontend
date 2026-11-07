@@ -84,7 +84,8 @@ Companion docs: `CLAUDE.md` (short working summary of this file),
      `vm.config`), Move Host (a host selected, `host.manage` globally), Rename Folder and
      Delete Folder (a folder selected, `folder.manage` on its cluster / host).
    - **View**: Refresh, Events History (`audit.read`), VM Locks (`task.cancel`).
-   - **Administration**: Roles, Global Permissions (both `rbac.manage`).
+   - **Administration**: Application Preferences (`settings.manage` or
+     `rbac.manage`; see Business rules › Application Preferences).
    - A privilege in brackets is held globally unless an object is named; without it
      the item is greyed out (see Business rules › Access control).
    - **Preferences**: Theme ▸ (8 themes), Tree Behavior ▸ (Collapsed / Expanded).
@@ -162,7 +163,7 @@ folder lists its VMs from any host, listed or not.
 | folder                                                     | Folder · name · "Cluster: X" or "Host: Y" · Rename Folder, Delete Folder (both `folder.manage` on its cluster / host) | **Virtual Machines** (VM count + `VmGrid` of `GET /vms?folderId=`: search, filters, batch power; a Host column on cluster folders) · **Permissions**                                                                              |
 | templatefolder                                             | Folder · "Templates" · scope                                                                   | template table (click or Enter on a row selects the template; an empty-state row when there are none)                                                                                                                           |
 | template                                                   | Package · name · "cluster › host" · Deploy new VM…                                             | property list + notes                                                                                                                                                                                                             |
-| vm                                                         | state icon · name · "state · firmware" (state in `text-fg`) · power buttons (Delete set apart by a separator), Refresh, More ▾, lock badge | **Summary** · **VM Metrics** (only when `metricsEnabled`) · **Snapshots** · **Console** (greyed out while Off / Paused, or without `vm.console`) · **Events** · **Permissions**                                       |
+| vm                                                         | state icon · name · "state · firmware" (state in `text-fg`) · power buttons (Delete set apart by a separator), Refresh, More ▾, lock badge | **Summary** · **VM Metrics** · **Snapshots** · **Console** (greyed out while Off / Paused, or without `vm.console`) · **Events** · **Permissions**                                       |
 
 **VM Startup Ordering** (cluster tab and host ▸ Configuration,
 `panels/VmStartupOrderingPanel.tsx`) lists VMs in boot order. The `#` column is a
@@ -396,6 +397,7 @@ To add a call:
 |              | `GET /roles` · `POST /roles` · `PATCH /roles/:id` · `POST /roles/:id/clone` · `DELETE /roles/:id` | `{ name, description?, privileges }` · any of those · `{ name }` · -                                     | `Role[]` · `Role` · `204`                              |
 |              | `GET /permissions` · `POST /permissions` · `PATCH /permissions/:id` · `DELETE /permissions/:id` | `?scopeType&scopeId` · `{ group, roleId, scopeType, scopeId, propagate }` · `{ roleId?, propagate? }` · - | `PermissionList` `{ direct, inherited }` · `Permission` · `204` |
 |              | `GET /rbac/groups` · `GET /rbac/effective`                              | `?q` · `?group=<name>&object=vm:<id>`                                                                                | `string[]` · `EffectivePermissions`                    |
+| settings     | `GET /settings` · `PATCH /settings` (`settings.manage`)                 | - · any of `{ metricsRetentionSeconds, metricsIntervalSeconds, vmConsoleNonAdminAccess }`                                                    | `AppSettings` (+ `metricsRetentionOptions`)            |
 | consoles     | `GET /vms/:id/console` (`vm.console`) · `GET /hosts/:id/console` (`host.console`) | - (called by the Console panels, and by the tunnel server-side)                                            | `ConsoleTarget` `{ hostname, port, vmGuid }`           |
 
 #### VM action wire params (`POST /vms/:id/actions/<action>` → agent `AgentRequest.params`)
@@ -416,7 +418,6 @@ management actions take these params, in snake_case:
 | `notes_edit`                           | `notes_edit`                               | `notes`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `snapshot_create`                      | `snapshot_create`                          | `name?`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `snapshot_remove` · `snapshot_restore` | same                                       | `snapshot_id`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `enable_metrics` · `disable_metrics`   | `vm_enable_metrics` · `vm_disable_metrics` | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `refresh`                              | `refresh_status`                           | - (re-inventory one VM; takes no lock)                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 Task `kind` → display label: `tasks/taskLabels.ts` (`KIND_LABELS`). An unknown kind
@@ -438,13 +439,13 @@ task whose agent never answers still ends as `timeout` through the backend sweep
 | Data                                   | Key                                                                              | Refetch                                |
 | -------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------- |
 | clusters / cluster                     | `['clusters']` / `['clusters', id]`                                              | 30 s                                   |
-| hosts / host / host VMs / host metrics | `['hosts', {clusterId}]` / `['hosts', id]` / `[… , 'vms']` / `[…, 'metrics']`    | 15 s (host VMs 10 s; a host 5 s while its Setup Agent tab is open) |
+| hosts / host / host VMs / host metrics | `['hosts', {clusterId}]` / `['hosts', id]` / `[… , 'vms']` / `[…, 'metrics']`    | 15 s (host VMs 10 s; host metrics 30 s; a host 5 s while its Setup Agent tab is open) |
 | host templates / ISOs                  | `['hosts', id, 'templates' \| 'isos']`                                           | no polling                             |
 | agent config / install URL             | `['hosts', id, 'agent-config' \| 'agent-install']`                               | staleTime 5 min / 30 s (tokenized URL) |
 | folders                                | `['folders', params]`                                                            | 15 s                                   |
 | vlans                                  | `['vlans', params]`                                                              | no polling                             |
 | tags / tag categories                  | `['tags']` / `['tag-categories']`                                                | 30 s                                   |
-| vms / vm / vm metrics / locks          | `['vms', params]` / `['vms', id]` / `['vms', id, 'metrics']` / `['vms','locks']` | 10 s                                   |
+| vms / vm / vm metrics / locks          | `['vms', params]` / `['vms', id]` / `['vms', id, 'metrics']` / `['vms','locks']` | 10 s (vm metrics 30 s)                 |
 | vm console thumbnail                   | `['vms', id, 'thumbnail', lastSeen]`                                             | none - refetched when `lastSeen` moves |
 | task                                   | `['tasks', id]`                                                                  | 1.5 s until terminal                   |
 | recent tasks (dock)                    | `['tasks', {}]`                                                                  | 1.5 s while any active, else 4 s       |
@@ -453,6 +454,7 @@ task whose agent never answers still ends as `timeout` through the backend sweep
 | agent binaries / storage               | `['agent-binaries']` / `['agent-binaries', 'storage']`                           | 30 s / none                            |
 | me / my privileges per object          | `['me']` / `['me', 'privileges', objKey]`                                        | staleTime 60 s; `['me']` invalidated by every mutation (router `MutationCache`) |
 | catalog / roles / permissions / groups / effective | `['rbac', 'catalog' \| 'roles' \| 'permissions' \| 'groups' \| 'effective', …]` | none (catalog: staleTime ∞); RBAC mutations invalidate `['rbac']`, `['me']` and the inventory |
+| application settings                   | `['settings']`                                                                   | staleTime 60 s; Apply invalidates it and every `…'metrics'` key |
 | VM / host console target               | `['vms', id, 'console']` / `['hosts', id, 'console']`                            | staleTime 60 s, no retry               |
 
 Always invalidate by prefix: `['vms']`, `['hosts']`, `['tasks']` and so on.
@@ -584,7 +586,7 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
 | Tree toolbar                             | Refresh `RefreshCw` · New VM `MonitorUp` · New Cluster `Network` · New Host `Server` · New Folder `FolderPlus` · Search VMs `Search`                                                                                                                                                                                                                                                          |
 | VM search dialog                         | field `Search` · state column `VmIcon` · Previous / Next page `ChevronLeft` / `ChevronRight`                                                                                                                                                                                                                                                                                                  |
 | VM header                                | Refresh `RefreshCw` · More ▾ `MoreHorizontal` · lock badge `Lock`                                                                                                                                                                                                                                                                                                                             |
-| VM "More" menu                           | Edit VM `Pencil` · Rename `TextCursorInput` · Edit Notes `Pencil` · Move to Folder `FolderInput` · Move Storage `HardDrive` · Edit AutoStart `AlarmClock` · Mount / Eject DVD `Disc` · Migrate `Move` · Enable HA `ShieldCheck` · Disable HA `ShieldX` · Clone `Copy` · Export as Template `FileUp` · Enable / Disable Metrics `Gauge` · Remove from Inventory `Trash2` · Force unlock `Lock` |
+| VM "More" menu                           | Edit VM `Pencil` · Rename `TextCursorInput` · Edit Notes `Pencil` · Move to Folder `FolderInput` · Move Storage `HardDrive` · Edit AutoStart `AlarmClock` · Mount / Eject DVD `Disc` · Migrate `Move` · Enable HA `ShieldCheck` · Disable HA `ShieldX` · Clone `Copy` · Export as Template `FileUp` · Remove from Inventory `Trash2` · Force unlock `Lock` |
 | VM Summary                               | Open Web Console `ExternalLink` · Download RDP `Download` · no-thumbnail placeholder `Monitor` (`text-console-muted` on `bg-console-bg`) · Edit Notes… `Pencil` · Edit Network… `Network` · Edit Disks… `HardDrive` · Assign Tag… `Tag` · tag chip `Tag` · remove a tag `X`                                                                                                                                                                   |
 | Folder header                            | Rename Folder `Pencil` · Delete Folder `Trash2` (`text-danger`)                                                                                                                                                                                                                                                                                                                               |
 | Host header                              | Console `Monitor` · Actions ▾ `MoreHorizontal`                                                                                                                                                                                                                                                                                                                                                |
@@ -615,7 +617,7 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
 | Host status dot (`hostStatus` / `HostStatusLabel`)      | Online `bg-success` · Offline `bg-danger` · Awaiting agent (never checked in) `bg-disabled-text`; clustered hosts on the Summary also: Maintenance (node paused) and Joining cluster `bg-warning`, Cluster node down `bg-danger`. List rows (Cluster ▸ Hosts) carry no cluster node state, so only the agent side shows there |
 | Console connecting log (`ConnectLog`)                   | lines `text-console-fg` · finished steps `text-console-muted` with `Check` · cursor `bg-console-fg`                                        |
 | Console display and overlays                            | `bg-console-bg` (overlay `bg-console-bg/80`) · text `text-console-text` · detail `text-console-subtle` · error title `text-console-error` |
-| Metric chart series                                     | `var(--color-chart-1…5)`: CPU 1, memory 2, network rx 3 / tx 4, disk 5                                                                    |
+| Metric chart series                                     | `var(--color-chart-1…5)`: CPU 1 (peak dashed), memory 2, network rx 3 / tx 4, disk read 5 / write 2                                   |
 
 ---
 
@@ -677,12 +679,12 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
   `rbac/privileges.ts` `folderOwnerKey`. A permission on a host / cluster /
   folder covers what is inside it (and operating a host: maintenance, console,
   agent update), never the object itself.
-- **Administration ▸ Roles** (`rbac/RolesDialog.tsx`): roles table (lock icon =
+- **Application Preferences ▸ Roles** (`rbac/RolesPanel.tsx`): roles table (lock icon =
   built-in, "In use" = permission count) + Name / Description + one GroupBox of
   privilege checkboxes per privilege group. New, Clone ("<name> copy"), Delete
   (refused while in use: `ROLE_IN_USE`), Save / Create. Built-ins are read-only.
-- **Permissions tab** (`rbac/PermissionsPanel.tsx`; also Administration ▸ Global
-  Permissions): direct rows (Edit / Remove) then inherited ones, whose "Defined in"
+- **Permissions tab** (`rbac/PermissionsPanel.tsx`; also Application Preferences ▸
+  Global Permissions): direct rows (Edit / Remove) then inherited ones, whose "Defined in"
   link selects that object on its Permissions tab. **Add Permission**
   (`PermissionEditDialog`): the group as the provider sends it (with suggestions
   from `GET /rbac/groups`), a role, Propagate. A delegate can't grant a
@@ -691,6 +693,22 @@ disagree. VM grid batch actions: **Start (n)** `Play` · **Shut Down (n)** `Powe
   blocked levels flagged) and the resulting privileges.
 - RBAC changes invalidate `['rbac']`, `['me']` and the inventory lists; every
   other mutation invalidates `['me']` too (a move can change privileges).
+
+### Application Preferences (`appPreferences/ApplicationPreferencesDialog.tsx`)
+
+Tabs and their global privilege are listed in `appPreferences/tabs.ts`; a tab
+without it is greyed out.
+
+- **General** (`settings.manage`, footer **Apply** → `PATCH /settings`):
+  - Consoles: `vmConsoleNonAdminAccess` (default off; stored only, enforced once
+    Grant-VMConnectAccess lands).
+  - Metrics: collection interval, one of `metricsIntervalOptions` (30 s - 10 min,
+    default 5 min; the backend pushes it to the agents), and retention, one of
+    `metricsRetentionOptions` (1 h - 7 days, default 1 h).
+- **Roles** (`rbac.manage`): `RolesPanel`. Leaving the tab with an unsaved role
+  asks to discard it.
+- **Global Permissions** (`rbac.manage`): `PermissionsPanel` on `global`.
+- Audited as `settings.update`.
 
 ### Clusters and hosts
 
@@ -881,7 +899,6 @@ transition rule lives in `actions/useVmActionBlock.ts`.
 | Enable HA / Disable HA   | clustered host only (confirmation)                                                                                                                        | `enable_ha` / `disable_ha`                 |
 | Clone VM                | VM **Off** (shown disabled otherwise)                                                                                                                     | wizard in clone mode                       |
 | Export as Template      | VM **Off**. Name `[A-Za-z0-9_-]+`, optional notes                                                                                                         | `vm_export_template`                       |
-| Enable / Disable Metrics | toggles on `metricsEnabled`                                                                                                                               | `vm_enable_metrics` / `vm_disable_metrics` |
 | Remove from Inventory   | host offline only (danger item)                                                                                                                           | DB-only delete                             |
 | Force unlock             | VM locked **and** the caller holds `task.cancel` on it (danger item)                                                                                      | `DELETE /vm-locks/:vmId`                   |
 
@@ -1054,14 +1071,17 @@ Every item is also greyed out without its privilege (Access control).
   - Deploy: see the wizard.
 - **ISOs** are per-host lists, used by Mount DVD and by the wizard's DVD drive. There
   is no ISO or template management screen.
-- **Host Metrics**: the tab is always present once the agent has checked in. Charts:
-  CPU %, memory %, network rx/tx bps, disk latency ms.
-- **VM Metrics**: the tab appears only when `metricsEnabled`, toggled from the More
-  menu.
-  - Charts: CPU %, memory, network, disk.
-  - `diskBytes` and the `net*Bytes` values are cumulative counters, so the charts
-    diff consecutive samples.
-- Both keep the last hour of samples, oldest first.
+- **Host Metrics**: the tab is always present once the agent has checked in.
+  **VM Metrics**: always present; samples exist only while the VM runs.
+  - Each sample is the mean of one collection interval, already per second - no
+    deltas. Charts: CPU % (average + dashed peak), memory (VM: + pressure when
+    Dynamic Memory reports it), network rx/tx, and Disk (`panels/DiskMetricCharts.tsx`):
+    throughput and IOPS (read / write), latency (host: read / write + dashed peak;
+    VM: one IOPS-weighted line).
+  - The Disk selector picks all disks or one (`detail.disks`: host by name, VM by
+    VHD path, shown as the file name).
+- Both show the metrics retention window (Application Preferences ▸ General),
+  oldest first. Charts spanning over a day add the date to time labels.
 
 ### Host operations (`detail/HostActionsMenu.tsx`)
 
@@ -1197,8 +1217,22 @@ MIT).
 
 Classic MacOS specifics:
 
-- Platinum greys (`#ddd` surface, `#ccc` window frame), accent / selection
-  `#333399`, a `#666699` desktop; theme-local values live in `--mac-*` properties.
+- Platinum greys (`#ddd` surface, `#ccc` window frame, `#262626` ink), accent /
+  selection `#333399`, a `#666699` desktop; theme-local values live in `--mac-*`
+  properties. Windows carry a hard 2px ink drop shadow.
+- Controls follow the Mac OS 8 HIG numbers (via livid/exe's `docs/platinum.md`):
+  a push button has a real 1px ink border (`--btn-border`) and a two-step bevel
+  (`#ddd`/`#fff` top-left, `#777`/`#aaa` bottom-right); pressed (`:active`) it
+  turns `#666` with white text, a toggled-on button (`data-pressed`) is a `#888`
+  depressed segment, and disabled drops the bevel (`#888` edge, `#777` text, no
+  emboss). Text fields are white with an ink edge and the sunken lines outside
+  it; focus swaps those for a 2px `#9999ff` ring (`--field-focus-shadow`, since
+  fields are `outline-none`). Menus are `#eee` with an ink edge and a hard 2px
+  shadow, no bevel, disabled items `#888`; a menu bar title only inverts while
+  its menu is open (no hover). The status bar has a 1px ink top line.
+- Scrollbars: a sunken `#bbb` track, the lavender thumb (`#9999ff` face,
+  `#ccccff` / `#6666cc` bevel, a ridged grip on the WebKit thumb) and black 8x4
+  arrows. Firefox draws only `scrollbar-color` (lavender on grey).
 - Chrome (title bar, menus, buttons, tabs, group box legends) is set in
   **ChicagoFLF**, a public-domain stand-in for Charcoal, served from
   `public/fonts/ChicagoFLF.ttf` (its notice sits next to it). Body text is Geneva
@@ -1211,7 +1245,7 @@ Classic MacOS specifics:
   and the controls' `display` are set in `app.css` and not with Tailwind utilities
   (a utility would outrank the theme's `@layer components` rule).
 - Window boxes draw their glyphs in CSS (the lucide icons are hidden); the tree
-  uses disclosure triangles; scrollbars are the painted Platinum ones.
+  uses disclosure triangles.
 - No Apple artwork or icons are used.
 
 16bit Overload specifics:
@@ -1347,8 +1381,10 @@ src/
     events/                   EventsHistoryDialog, EventsTable, EventDetailsDialog, eventLabels (`audit.read`)
     locks/                    VmLocksDialog (`task.cancel`)
     rbac/                     privileges.ts (useCan & co, batched /me/privileges), objectTabs,
-                              RolesDialog, PermissionsPanel, PermissionEditDialog,
-                              EffectivePermissionsDialog, GlobalPermissionsDialog, mutations
+                              RolesPanel, PermissionsPanel, PermissionEditDialog,
+                              EffectivePermissionsDialog, mutations
+    appPreferences/           ApplicationPreferencesDialog, tabs.ts (tab → privilege),
+                              mutations (useUpdateSettings)
   routes/
     __root.tsx                providers (QueryClientProvider, AuthProvider, Preferences),
                               <head>, devtools. beforeLoad loads user + preferences.
@@ -1487,6 +1523,18 @@ provider), then set `VITE_API_URL=http://localhost:3000/frontend-api/api` in
   the client.
 - **Route every VM operation by `vm.id`**, never by `vmUuid`. The same `vmUuid` can
   exist on several hosts.
+- **Native scrollbars are painted with `::-webkit-scrollbar`** in Chrome and
+  Safari. Chrome 121+ ignores those rules on any element with `scrollbar-color` or
+  `scrollbar-width`, so `app.css` sets the `scrollbar-color` fallback only under
+  `@supports not selector(::-webkit-scrollbar)` (Firefox). Only the thin-scrollbar
+  themes (Modern, VMware) set both standard properties, on purpose. Chrome 153 no
+  longer matches `::-webkit-scrollbar-button:single-button`: select the arrow
+  boxes by `:vertical`/`:horizontal` + `:decrement`/`:increment`, and keep the
+  `:start:increment` / `:end:decrement` rule that hides the second button.
+- **Use `Dropdown`, not `Select`, for a pick list.** `Select` is a native
+  `<select>`, whose open list the browser draws in the OS style in every theme.
+  Nothing uses it any more; `Dropdown` takes an `aria-label` when it has no
+  visible label.
 - **`Dropdown`'s open list is portalled** to `<body>` with `position: fixed` and
   `z-[1000]`, so it works inside scrolling tables and dialogs (`z-[100]`) without
   being clipped or covered. It opens upwards when there's more room above, and it

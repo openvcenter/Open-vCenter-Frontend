@@ -309,6 +309,7 @@
   /* Thin native scrollbars */
   :is([data-theme='modern-light'], [data-theme='modern-dark']) * {
     scrollbar-width: thin;
+    scrollbar-color: var(--sb-color-thumb) var(--sb-color-track);
   }
 }
 

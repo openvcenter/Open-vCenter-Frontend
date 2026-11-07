@@ -1,12 +1,12 @@
 import * as React from 'react'
+import type { AppPreferencesTab } from '../appPreferences/tabs'
 
 export type OrganizeDialog =
   | { kind: 'cluster-management' }
   | { kind: 'host-management' }
   | { kind: 'agent-management' }
   | { kind: 'tag-management' }
-  | { kind: 'roles' }
-  | { kind: 'global-permissions' }
+  | { kind: 'app-preferences'; tab?: AppPreferencesTab }
   | { kind: 'new-folder'; clusterId?: string; hostId?: string }
   | {
       kind: 'new-vm'

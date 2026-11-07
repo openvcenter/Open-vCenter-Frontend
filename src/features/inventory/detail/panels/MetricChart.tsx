@@ -1,11 +1,13 @@
 import * as React from "react";
-import { clock } from "../../format";
+import { clock, shortDateTime } from "../../format";
 
 export type MetricSeries = {
   label: string;
   color: string;
   /** one value per sample; `null` breaks the line (gap / counter reset). */
   values: (number | null)[];
+  /** dashed line - a peak drawn over its mean. */
+  dashed?: boolean;
 };
 
 type Props = {
@@ -85,6 +87,11 @@ export function MetricChart({
 
   const gridY = Array.from({ length: rows + 1 }, (_, i) => (i / rows) * 100);
   const hasLine = series.some((s) => segmentsFor(s).length > 0);
+
+  // past a day (long metrics retention) a bare clock is ambiguous: add the date
+  const spansDays =
+    n > 1 && Date.parse(times[n - 1]) - Date.parse(times[0]) > 86_400_000;
+  const tickLabel = (iso: string) => (spansDays ? shortDateTime(iso) : clock(iso));
 
   // evenly spaced sample indices for the x-axis time ticks
   const tickCount = Math.min(4, n);
@@ -175,6 +182,7 @@ export function MetricChart({
                   fill="none"
                   stroke={s.color}
                   strokeWidth="1.5"
+                  strokeDasharray={s.dashed ? "4 3" : undefined}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                   vectorEffect="non-scaling-stroke"
@@ -204,7 +212,9 @@ export function MetricChart({
                 marginLeft: hoverFrac > 0.6 ? -4 : 4,
               }}
             >
-              <div className="font-bold">{clock(times[hover], true)}</div>
+              <div className="font-bold">
+                {spansDays ? shortDateTime(times[hover]) : clock(times[hover], true)}
+              </div>
               {series.map((s) => {
                 const v = s.values[hover];
                 return (
@@ -248,7 +258,7 @@ export function MetricChart({
                     : "translateX(-50%)",
             }}
           >
-            {clock(times[i])}
+            {tickLabel(times[i])}
           </span>
         ))}
       </div>

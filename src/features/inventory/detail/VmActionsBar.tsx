@@ -5,7 +5,6 @@ import {
   Disc,
   FileUp,
   FolderInput,
-  Gauge,
   HardDrive,
   Lock,
   MoreHorizontal,
@@ -238,20 +237,6 @@ export function VmActionsBar({ vm }: { vm: Vm }) {
       onSelect: () =>
         vmActionDialog.open({ kind: "export-template", vmId: vm.id }),
     },
-    { type: "separator" },
-    vm.metricsEnabled
-      ? gate(can("disable_metrics"), {
-          label: "Disable Metrics",
-          icon: Gauge,
-          onSelect: () =>
-            mgmt.mutate({ kind: "action", action: "disable_metrics" }),
-        })
-      : gate(can("enable_metrics"), {
-          label: "Enable Metrics",
-          icon: Gauge,
-          onSelect: () =>
-            mgmt.mutate({ kind: "action", action: "enable_metrics" }),
-        }),
   ];
 
   // while an operation is running on the VM - or the host agent is offline -

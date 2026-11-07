@@ -16,6 +16,7 @@ import type { AuditEventParams } from "./endpoints/audit";
 import { getFolders } from "./endpoints/folders";
 import { getVlans } from "./endpoints/vlans";
 import { getTagCategories, getTags } from "./endpoints/tags";
+import { getSettings } from "./endpoints/settings";
 import type { VlanListParams } from "./endpoints/vlans";
 import {
   getVm,
@@ -46,6 +47,8 @@ const INTERVAL = {
   clusters: 30_000,
   hosts: 15_000,
   vms: 10_000,
+  // agents post one metrics sample per collection interval (30 s at the shortest)
+  metrics: 30_000,
   task: 1_500,
 } as const;
 
@@ -88,7 +91,7 @@ export const hostMetricsQuery = (id: string) =>
   queryOptions({
     queryKey: qk.hostMetrics(id),
     queryFn: ({ signal }) => getHostMetrics(id, signal),
-    refetchInterval: INTERVAL.hosts,
+    refetchInterval: INTERVAL.metrics,
   });
 
 export const hostTemplatesQuery = (id: string) =>
@@ -163,7 +166,7 @@ export const vmMetricsQuery = (id: string) =>
   queryOptions({
     queryKey: qk.vmMetrics(id),
     queryFn: ({ signal }) => getVmMetrics(id, signal),
-    refetchInterval: INTERVAL.vms,
+    refetchInterval: INTERVAL.metrics,
   });
 
 /** Last console thumbnail (`null` = none captured yet). No polling: the agent
@@ -250,6 +253,15 @@ export const agentStorageQuery = () =>
   queryOptions({
     queryKey: qk.agentStorage(),
     queryFn: ({ signal }) => getAgentStorage(signal),
+  });
+
+// ---- application settings -------------------------------------------------
+
+export const settingsQuery = () =>
+  queryOptions({
+    queryKey: qk.settings(),
+    queryFn: ({ signal }) => getSettings(signal),
+    staleTime: 60_000,
   });
 
 // ---- access control -------------------------------------------------------

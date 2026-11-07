@@ -118,14 +118,9 @@ export function InventoryMenuBar() {
       label: 'Administration',
       items: [
         {
-          label: 'Roles',
-          disabled: !global.can('rbac.manage'),
-          onSelect: () => organizeDialog.open({ kind: 'roles' }),
-        },
-        {
-          label: 'Global Permissions',
-          disabled: !global.can('rbac.manage'),
-          onSelect: () => organizeDialog.open({ kind: 'global-permissions' }),
+          label: 'Application Preferences',
+          disabled: !global.can('settings.manage') && !global.can('rbac.manage'),
+          onSelect: () => organizeDialog.open({ kind: 'app-preferences' }),
         },
       ],
     },

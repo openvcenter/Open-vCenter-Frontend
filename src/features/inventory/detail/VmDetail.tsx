@@ -21,7 +21,6 @@ const BASE_TABS: TabItem[] = [
   { id: 'snapshots', label: 'Snapshots' },
   { id: 'console', label: 'Console' },
 ]
-// only shown when the VM has Hyper-V resource metering on
 const METRICS_TAB: TabItem = { id: 'metrics', label: 'VM Metrics' }
 
 export function VmDetail({ vmId }: { vmId: string }) {
@@ -42,9 +41,9 @@ export function VmDetail({ vmId }: { vmId: string }) {
   const consoleBlock = vmConsoleStateBlock(v.state)
   const consoleAllowed = privs.can('vm.console')
   const tabs = [
-    ...(v.metricsEnabled
-      ? [BASE_TABS[0], METRICS_TAB, ...BASE_TABS.slice(1)]
-      : BASE_TABS),
+    BASE_TABS[0],
+    METRICS_TAB,
+    ...BASE_TABS.slice(1),
     ...privilegedTabs(privs),
   ].map((t) =>
     t.id !== 'console'

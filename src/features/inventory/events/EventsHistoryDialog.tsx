@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Search } from "lucide-react";
-import { Button, Dialog, Icon, Select, TextField } from "~/components/win95";
+import { Button, Dialog, Dropdown, Icon, TextField } from "~/components/win95";
 import { qk } from "~/api/queryKeys";
 import type { AuditEventParams } from "~/api/endpoints/audit";
 import type { AuditOutcome, AuditTargetType } from "~/api/types";
@@ -58,30 +58,32 @@ export function EventsHistoryDialog({ onClose }: { onClose: () => void }) {
             placeholder="Search by object name or who did it…"
             className="min-w-[220px] flex-1"
           />
-          <Select
+          <Dropdown
             aria-label="Object type"
             value={targetType}
-            onChange={(e) => setTargetType(e.target.value as AuditTargetType | "")}
-          >
-            <option value="">All objects</option>
-            {(Object.keys(TARGET_TYPE_LABEL) as AuditTargetType[]).map((t) => (
-              <option key={t} value={t}>
-                {TARGET_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </Select>
-          <Select
+            onChange={(v) => setTargetType(v as AuditTargetType | "")}
+            options={[
+              { value: "", label: "All objects" },
+              ...(Object.keys(TARGET_TYPE_LABEL) as AuditTargetType[]).map((t) => ({
+                value: t,
+                label: TARGET_TYPE_LABEL[t],
+              })),
+            ]}
+            className="w-[140px]"
+          />
+          <Dropdown
             aria-label="Outcome"
             value={outcome}
-            onChange={(e) => setOutcome(e.target.value as AuditOutcome | "")}
-          >
-            <option value="">Any outcome</option>
-            {(Object.keys(OUTCOME_TEXT) as AuditOutcome[]).map((o) => (
-              <option key={o} value={o}>
-                {OUTCOME_TEXT[o]}
-              </option>
-            ))}
-          </Select>
+            onChange={(v) => setOutcome(v as AuditOutcome | "")}
+            options={[
+              { value: "", label: "Any outcome" },
+              ...(Object.keys(OUTCOME_TEXT) as AuditOutcome[]).map((o) => ({
+                value: o,
+                label: OUTCOME_TEXT[o],
+              })),
+            ]}
+            className="w-[120px]"
+          />
           {filtered || q ? (
             <Button
               className="min-w-0 px-2"
