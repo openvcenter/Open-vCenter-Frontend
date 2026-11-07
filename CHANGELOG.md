@@ -8,6 +8,25 @@ All notable changes to ovc-frontend. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-07
+
+### Added
+
+- Host ▸ Configuration ▸ Host Settings: power plan, core isolation, page file,
+  Wireless LAN, IPv6, NUMA spanning, enhanced session mode and live migration
+  settings, read-only (needs ovc-backend 0.6.0 and ovc-agent-hyperv 1.0.10).
+- Host ▸ Configuration ▸ Network Adapters: IPv6 and VMQ state per adapter.
+- Host and VM metrics: a time range bar (`1h | 2h | 6h | … | All`, up to the
+  metrics retention; default 1h) and drag-to-zoom on any chart, with Reset zoom
+  (needs ovc-backend `?seconds=` on the metrics endpoints).
+
+### Changed
+
+- Metrics ▸ Disk: "All disks" draws one line per disk (read solid, write
+  dashed) instead of the sum, and the selector is hidden when there is only one
+  disk. Host disks are volumes (`C:`, `D:`; needs ovc-agent-hyperv 1.0.10),
+  shown with their label or CSV name (`C: (SYSTEM)`).
+
 ## [0.6.0] - 2026-11-07
 
 ### Added
@@ -238,7 +257,8 @@ All notable changes to ovc-frontend. The format follows
 
 First public release.
 
-[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.6.0...HEAD
+[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.7.0...HEAD
+[0.7.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.6.0...0.7.0
 [0.6.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.5.0...0.6.0
 [0.5.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.4.1...0.5.0
 [0.4.1]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.4.0...0.4.1
