@@ -5,6 +5,9 @@
  * packages/ui/styles.css, MIT) - see "Credits" in the README. No Apple artwork
  * is used: every glyph here is drawn in CSS.
  *
+ * Controls, menus, fields, the status bar and the scrollbar thumb follow the
+ * Mac OS 8 HIG numbers as collected in livid/exe's docs/platinum.md.
+ *
  * Chrome (title bar, menus, buttons, tabs, legends) is set in ChicagoFLF, a
  * public-domain stand-in for Charcoal/Chicago (public/fonts/); body text uses
  * Geneva where the OS has it.
@@ -84,13 +87,13 @@
   --focus-outline: 2px solid var(--mac-focus);
   --focus-offset: -2px;
 
-  /* Window frame: black edge, 1px drop shadow, platinum border */
+  /* Window frame: ink edge, 2px hard drop shadow, platinum border */
   --window-bg: var(--mac-platinum);
   --window-shadow:
-    1px 1px 0 0 var(--mac-ink),
+    2px 2px 0 0 var(--mac-ink),
     inset 0 0 0 1px var(--mac-ink),
     inset 2px 2px 0 0 var(--color-bevel-light),
-    inset -2px -2px 0 0 var(--color-line);
+    inset -2px -2px 0 0 var(--color-bevel-dark);
   --window-padding: 4px;
   --window-body-bg: var(--color-surface);
   --window-body-shadow: 0 0 0 1px var(--color-bevel-darker);
@@ -120,25 +123,40 @@
     0 0 0 1px var(--color-surface-2),
     inset 2px 2px 0 0 var(--color-bevel-darker);
 
+  /* Push button: a real 1px ink border, a two-step bevel (#ddd/#fff over
+     #777/#aaa); pressed goes dark with white text (rules below); disabled
+     loses the bevel */
   --btn-bg: var(--color-surface);
   --btn-color: var(--color-fg);
+  --btn-border: 1px solid var(--mac-ink);
   --btn-radius: 3px;
   --btn-shadow:
-    inset 0 0 0 1px var(--mac-ink),
-    inset 2px 2px 0 0 var(--color-bevel-light),
-    inset -2px -2px 0 0 var(--color-line);
-  --btn-active-bg: var(--color-bevel-dark);
-  --btn-active-shadow: var(--bevel-pressed);
+    inset 1px 1px 0 0 #dddddd,
+    inset -1px -1px 0 0 #777777,
+    inset 2px 2px 0 0 #ffffff,
+    inset -2px -2px 0 0 #aaaaaa;
+  --btn-hover-border-color: var(--mac-ink);
+  --btn-active-bg: #666666;
+  --btn-active-shadow:
+    inset 1px 1px 0 0 #444444,
+    inset -1px -1px 0 0 #888888,
+    inset 2px 2px 0 0 #555555,
+    inset -2px -2px 0 0 #777777;
   --btn-focus-outline: 2px solid var(--mac-focus);
   --btn-focus-offset: 1px;
-  --btn-disabled-shadow:
-    inset 0 0 0 1px var(--color-line),
-    inset 2px 2px 0 0 var(--color-bevel-light),
-    inset -2px -2px 0 0 #bbbbbb;
-  --btn-disabled-text-shadow: 1px 1px 0 var(--color-disabled-highlight);
+  --btn-disabled-shadow: none;
+  --btn-disabled-text-shadow: none;
 
+  /* Text field: white, ink edge, sunken lines outside it (#999 top-left,
+     white bottom-right); focus swaps them for a 2px lavender ring */
   --field-bg: var(--color-window);
-  --field-shadow: var(--bevel-sunken);
+  --field-shadow:
+    inset 0 0 0 1px var(--mac-ink),
+    -1px -1px 0 0 var(--color-bevel-dark),
+    1px 1px 0 0 var(--color-bevel-light);
+  --field-focus-shadow:
+    inset 0 0 0 1px var(--mac-ink),
+    0 0 0 2px var(--mac-field-focus);
   --field-thin-shadow: inset 0 0 0 1px var(--mac-edge);
   --field-disabled-bg: var(--color-surface);
 
@@ -161,16 +179,14 @@
     inset 0 1px 0 0 var(--color-bevel-light),
     inset 0 -1px 0 0 var(--mac-ink),
     inset 0 -2px 0 0 var(--color-bevel-dark);
-  --menubar-item-hover-bg: var(--color-selection);
-  --menubar-item-hover-text: var(--color-selection-text);
+  /* a menu title only inverts while its menu is open - no hover state */
   --menubar-item-open-bg: var(--color-selection);
   --menubar-item-open-text: var(--color-selection-text);
-  --menu-bg: var(--color-surface);
+  /* Menus: #eee, an ink edge and a hard 2px drop shadow, no bevel */
+  --menu-bg: var(--color-surface-2);
   --menu-shadow:
     0 0 0 1px var(--mac-ink),
-    1px 1px 0 1px var(--mac-ink),
-    inset 1px 1px 0 0 var(--color-bevel-light),
-    inset -1px -1px 0 0 #aaaaaa;
+    2px 2px 0 1px rgb(38 38 38 / 0.85);
   --menu-padding: 3px 0;
   --menu-item-hover-bg: var(--color-selection);
   --menu-item-hover-text: var(--color-selection-text);
@@ -213,7 +229,10 @@
   --toolbar-sep-right: var(--color-bevel-light);
 
   --statusbar-bg: var(--color-surface);
-  --statusbar-shadow: inset 0 1px 0 0 var(--color-bevel-dark);
+  --statusbar-shadow:
+    inset 0 1px 0 0 var(--mac-ink),
+    inset 1px 2px 0 0 rgb(255 255 255 / 0.6),
+    inset -1px -1px 0 0 #aaaaaa;
 
   --progress-well-bg: var(--color-surface);
   --progress-well-shadow: inset 0 0 0 1px var(--mac-edge);
@@ -250,30 +269,29 @@
   --splitter-bg: var(--mac-platinum);
   --splitter-grip-bg: var(--mac-platinum);
 
+  /* Scrollbars: a sunken grey track (#777 → #bbb from the top-left edge),
+     the lavender thumb (#ccccff / #9999ff / #6666cc, grip below) and
+     platinum arrow boxes with black arrows */
   --sb-bg: var(--mac-platinum);
-  --sb-shadow: inset 0 0 0 1px var(--color-line);
-  --sb-track-bg: repeating-linear-gradient(
-    135deg,
-    #dddddd 0px,
-    #dddddd 1px,
-    #eeeeee 1px,
-    #eeeeee 2px
-  );
-  --sb-thumb-bg: var(--mac-platinum);
+  --sb-shadow: inset 0 0 0 1px var(--mac-ink);
+  --sb-track-bg: #bbbbbb;
+  --sb-thumb-bg: #9999ff;
   --sb-thumb-shadow:
-    inset 0 0 0 1px var(--color-bevel-darker),
+    inset 0 0 0 1px var(--mac-ink),
+    inset 2px 2px 0 0 #ccccff,
+    inset -2px -2px 0 0 #6666cc;
+  --sb-btn-bg: var(--color-surface);
+  --sb-btn-shadow:
+    inset 0 0 0 1px var(--mac-ink),
     inset 2px 2px 0 0 var(--color-bevel-light),
     inset -2px -2px 0 0 var(--color-bevel-dark);
-  --sb-btn-bg: var(--mac-platinum);
-  --sb-btn-shadow:
-    inset 0 0 0 1px #777777,
-    inset 2px 2px 0 0 var(--color-bevel-light);
   --sb-btn-active-shadow:
-    inset 0 0 0 1px #777777,
-    inset 2px 2px 0 0 var(--color-bevel-darker);
-  --sb-arrow-color: #666666;
-  --sb-color-thumb: var(--color-bevel-dark);
-  --sb-color-track: var(--color-surface);
+    inset 0 0 0 1px var(--mac-ink),
+    inset 2px 2px 0 0 #444444,
+    inset -2px -2px 0 0 #888888;
+  --sb-arrow-color: var(--mac-ink);
+  --sb-color-thumb: #9999ff;
+  --sb-color-track: #bbbbbb;
 
   --grid-fg: var(--color-fg);
   --grid-header-bg: var(--color-surface);
@@ -284,10 +302,15 @@
   /* Theme-local palette */
   --mac-system-font: Charcoal, Chicago, ChicagoFLF, var(--font-sans);
   --mac-platinum: #cccccc;
-  --mac-ink: #000000;
+  --mac-ink: #262626;
   --mac-edge: #555555;
   --mac-hover: #eeeeff;
   --mac-focus: #333399;
+  --mac-field-focus: #9999ff;
+  --mac-track-shadow:
+    inset 1px 1px 0 0 #777777,
+    inset 2px 2px 0 0 #888888,
+    inset 3px 3px 0 0 #aaaaaa;
 }
 
 @layer components {
@@ -375,6 +398,30 @@
     border-bottom: 1px solid currentColor;
   }
 
+  /* Pressed push button: dark face, white text. A toggled-on button
+     (data-pressed) is a depressed segment instead: mid grey, dark text. */
+  [data-theme='mac-classic'] .ui-btn:active:not(:disabled) {
+    color: #ffffff;
+  }
+  [data-theme='mac-classic'] .ui-btn[data-pressed='true']:not(:disabled, :active) {
+    background: #888888;
+  }
+  [data-theme='mac-classic'] .ui-btn:disabled {
+    color: #777777;
+    border-color: #888888;
+  }
+
+  [data-theme='mac-classic'] .ui-menu-item:is(:disabled, [aria-disabled='true']) {
+    color: #888888;
+  }
+
+  [data-theme='mac-classic'] .ui-sb-track {
+    box-shadow: var(--mac-track-shadow);
+  }
+  [data-theme='mac-classic'] .ui-sb-btn:active {
+    background: #777777;
+  }
+
   [data-theme='mac-classic'] .ui-groupbox {
     box-shadow:
       1px 1px 0 0 var(--color-bevel-light),
@@ -402,22 +449,41 @@
   }
 }
 
-/* Platinum scroll arrows (the Classic ones are black on a Win95 button) */
+/* Platinum scrollbars: sunken track, ridged grip on the thumb, black 8x4
+   arrows (the Classic ones are drawn for a Win95 button) */
 [data-theme='mac-classic'] ::-webkit-scrollbar-track {
-  box-shadow: inset 0 0 0 1px var(--color-line);
+  box-shadow: var(--mac-track-shadow);
 }
-[data-theme='mac-classic'] ::-webkit-scrollbar-button:single-button {
-  background-size: 7px 7px;
+[data-theme='mac-classic'] ::-webkit-scrollbar-thumb:vertical {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='11' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h8v1H0zM0 3h8v1H0zM0 6h8v1H0zM0 9h8v1H0z' fill='%23ccf'/%3E%3Cpath d='M0 1h8v1H0zM0 4h8v1H0zM0 7h8v1H0zM0 10h8v1H0z' fill='%23336'/%3E%3C/svg%3E")
+      center / 8px 11px no-repeat,
+    var(--sb-thumb-bg);
 }
-[data-theme='mac-classic'] ::-webkit-scrollbar-button:single-button:vertical:decrement {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M0 6L4 1l4 5z' fill='%23666'/%3E%3C/svg%3E");
+[data-theme='mac-classic'] ::-webkit-scrollbar-thumb:horizontal {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='8' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v8H0zM3 0h1v8H3zM6 0h1v8H6zM9 0h1v8H9z' fill='%23ccf'/%3E%3Cpath d='M1 0h1v8H1zM4 0h1v8H4zM7 0h1v8H7zM10 0h1v8H10z' fill='%23336'/%3E%3C/svg%3E")
+      center / 11px 8px no-repeat,
+    var(--sb-thumb-bg);
 }
-[data-theme='mac-classic'] ::-webkit-scrollbar-button:single-button:vertical:increment {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M0 1l4 5 4-5z' fill='%23666'/%3E%3C/svg%3E");
+[data-theme='mac-classic'] ::-webkit-scrollbar-button:active {
+  background-color: #777777;
 }
-[data-theme='mac-classic'] ::-webkit-scrollbar-button:single-button:horizontal:decrement {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M6 0L1 4l5 4z' fill='%23666'/%3E%3C/svg%3E");
+[data-theme='mac-classic'] ::-webkit-scrollbar-button:vertical {
+  background-size: 8px 4px;
 }
-[data-theme='mac-classic'] ::-webkit-scrollbar-button:single-button:horizontal:increment {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M1 0l5 4-5 4z' fill='%23666'/%3E%3C/svg%3E");
+[data-theme='mac-classic'] ::-webkit-scrollbar-button:horizontal {
+  background-size: 4px 8px;
+}
+[data-theme='mac-classic'] ::-webkit-scrollbar-button:vertical:decrement {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='4'%3E%3Cpath d='M0 4L4 0l4 4z' fill='%23262626'/%3E%3C/svg%3E");
+}
+[data-theme='mac-classic'] ::-webkit-scrollbar-button:vertical:increment {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='4'%3E%3Cpath d='M0 0l4 4 4-4z' fill='%23262626'/%3E%3C/svg%3E");
+}
+[data-theme='mac-classic'] ::-webkit-scrollbar-button:horizontal:decrement {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8'%3E%3Cpath d='M4 0L0 4l4 4z' fill='%23262626'/%3E%3C/svg%3E");
+}
+[data-theme='mac-classic'] ::-webkit-scrollbar-button:horizontal:increment {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8'%3E%3Cpath d='M0 0l4 4-4 4z' fill='%23262626'/%3E%3C/svg%3E");
 }

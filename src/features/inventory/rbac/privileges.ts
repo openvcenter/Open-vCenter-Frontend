@@ -133,3 +133,25 @@ export function useVmActionPrivileges(): Record<string, Privilege | null> {
   const catalog = useQuery(rbacCatalogQuery());
   return catalog.data?.vmActions ?? {};
 }
+
+/**
+ * Whether the caller may run a VM action (catalog `vmActions` kind, e.g. `edit`,
+ * `notes_edit`) on this VM. False while the catalog or the privileges load.
+ */
+export function useVmActionCan(vmId: string): (action: string) => boolean {
+  const privs = usePrivileges(objKey("vm", vmId));
+  const actionPriv = useVmActionPrivileges();
+  return (action) => privs.can(actionPriv[action]);
+}
+
+/** The ids of the VMs on which the caller may run `action` (one batched request). */
+export function useVmsAllowedTo(action: string, vmIds: string[]): Set<string> {
+  const priv = useVmActionPrivileges()[action];
+  const keys = vmIds.map((id) => objKey("vm", id));
+  // the catalog names the privilege; until it loads nothing is allowed
+  const withPriv = useKeysWith(priv ?? "vm.config", keys);
+  const { isAdmin } = useAuth();
+  if (isAdmin || priv === null) return new Set(vmIds);
+  if (priv === undefined) return new Set();
+  return new Set(vmIds.filter((id) => withPriv.has(objKey("vm", id))));
+}

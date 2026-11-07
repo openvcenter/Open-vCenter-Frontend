@@ -28,8 +28,6 @@ const KIND_LABELS: Record<string, string> = {
   snapshot_remove: "Delete Snapshot",
   snapshot_restore: "Restore Snapshot",
   // --- VM misc ---
-  vm_enable_metrics: "Enable Metrics",
-  vm_disable_metrics: "Disable Metrics",
   enable_ha: "Enable High Availability",
   disable_ha: "Disable High Availability",
   vm_inventory: "Refresh VM Inventory",

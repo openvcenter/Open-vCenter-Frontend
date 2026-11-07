@@ -1,11 +1,15 @@
 import * as React from "react";
-import { clock } from "../../format";
+import { cn } from "~/components/win95";
+import { clock, shortDateTime } from "../../format";
+import { MetricZoomContext } from "./MetricsRangeBar";
 
 export type MetricSeries = {
   label: string;
   color: string;
   /** one value per sample; `null` breaks the line (gap / counter reset). */
   values: (number | null)[];
+  /** dashed line - a peak drawn over its mean, or a disk's write next to its read. */
+  dashed?: boolean;
 };
 
 type Props = {
@@ -42,6 +46,9 @@ function niceMax(m: number): number {
  * The SVG draws in a 0-100 square with `preserveAspectRatio="none"` so it
  * stretches to any width; `vector-effect="non-scaling-stroke"` keeps strokes
  * 1-ish px regardless. All text is real HTML so it never distorts.
+ *
+ * Inside a MetricZoomContext, dragging across the plot zooms to that period and
+ * a double-click resets the zoom.
  */
 export function MetricChart({
   title,
@@ -54,6 +61,9 @@ export function MetricChart({
 }: Props) {
   const n = Math.max(...series.map((s) => s.values.length), 0);
   const [hover, setHover] = React.useState<number | null>(null);
+  // drag-to-zoom: the sample index where the drag started and where it is now
+  const [drag, setDrag] = React.useState<{ a: number; b: number } | null>(null);
+  const zoomCtx = React.useContext(MetricZoomContext);
   const plotRef = React.useRef<HTMLDivElement>(null);
 
   const dataMax = Math.max(
@@ -86,6 +96,11 @@ export function MetricChart({
   const gridY = Array.from({ length: rows + 1 }, (_, i) => (i / rows) * 100);
   const hasLine = series.some((s) => segmentsFor(s).length > 0);
 
+  // past a day (long metrics retention) a bare clock is ambiguous: add the date
+  const spansDays =
+    n > 1 && Date.parse(times[n - 1]) - Date.parse(times[0]) > 86_400_000;
+  const tickLabel = (iso: string) => (spansDays ? shortDateTime(iso) : clock(iso));
+
   // evenly spaced sample indices for the x-axis time ticks
   const tickCount = Math.min(4, n);
   const xTicks =
@@ -105,11 +120,34 @@ export function MetricChart({
     return null;
   };
 
-  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (n === 0 || !plotRef.current) return;
+  const indexAt = (clientX: number): number | null => {
+    if (n === 0 || !plotRef.current) return null;
     const r = plotRef.current.getBoundingClientRect();
-    const frac = (e.clientX - r.left) / r.width;
-    setHover(Math.max(0, Math.min(n - 1, Math.round(frac * (n - 1)))));
+    const frac = (clientX - r.left) / r.width;
+    return Math.max(0, Math.min(n - 1, Math.round(frac * (n - 1))));
+  };
+
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const i = indexAt(e.clientX);
+    if (i == null) return;
+    setHover(i);
+    if (drag) setDrag({ a: drag.a, b: i });
+  };
+
+  const onDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!zoomCtx || n < 2 || e.button !== 0) return;
+    const i = indexAt(e.clientX);
+    if (i == null) return;
+    e.preventDefault(); // no text selection while dragging
+    setDrag({ a: i, b: i });
+  };
+
+  const onUp = () => {
+    if (!drag || !zoomCtx) return;
+    const lo = Math.min(drag.a, drag.b);
+    const hi = Math.max(drag.a, drag.b);
+    setDrag(null);
+    if (hi > lo) zoomCtx.zoom(times[lo], times[hi]);
   };
 
   const hoverFrac = hover != null && n > 1 ? hover / (n - 1) : 0;
@@ -130,10 +168,19 @@ export function MetricChart({
         </div>
         <div
           ref={plotRef}
-          className="bevel-sunken bg-window relative flex-1"
+          className={cn(
+            "bevel-sunken bg-window relative flex-1",
+            zoomCtx && n > 1 && "cursor-crosshair",
+          )}
           style={{ height }}
           onMouseMove={onMove}
-          onMouseLeave={() => setHover(null)}
+          onMouseDown={onDown}
+          onMouseUp={onUp}
+          onDoubleClick={zoomCtx?.reset}
+          onMouseLeave={() => {
+            setHover(null);
+            setDrag(null);
+          }}
         >
           <svg
             className="absolute inset-0 h-full w-full"
@@ -175,6 +222,7 @@ export function MetricChart({
                   fill="none"
                   stroke={s.color}
                   strokeWidth="1.5"
+                  strokeDasharray={s.dashed ? "4 3" : undefined}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                   vectorEffect="non-scaling-stroke"
@@ -194,6 +242,17 @@ export function MetricChart({
             ) : null}
           </svg>
 
+          {drag && drag.a !== drag.b ? (
+            <div
+              aria-hidden
+              className="bg-selection/20 pointer-events-none absolute inset-y-0"
+              style={{
+                left: `${x(Math.min(drag.a, drag.b))}%`,
+                width: `${Math.abs(x(drag.b) - x(drag.a))}%`,
+              }}
+            />
+          ) : null}
+
           {hover != null ? (
             <div
               className="bevel-raised bg-surface pointer-events-none absolute top-1 z-10 whitespace-nowrap p-1 text-xs"
@@ -204,7 +263,9 @@ export function MetricChart({
                 marginLeft: hoverFrac > 0.6 ? -4 : 4,
               }}
             >
-              <div className="font-bold">{clock(times[hover], true)}</div>
+              <div className="font-bold">
+                {spansDays ? shortDateTime(times[hover]) : clock(times[hover], true)}
+              </div>
               {series.map((s) => {
                 const v = s.values[hover];
                 return (
@@ -248,7 +309,7 @@ export function MetricChart({
                     : "translateX(-50%)",
             }}
           >
-            {clock(times[i])}
+            {tickLabel(times[i])}
           </span>
         ))}
       </div>

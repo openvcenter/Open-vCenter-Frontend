@@ -1,4 +1,4 @@
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { getCluster, getClusters } from "./endpoints/clusters";
 import {
   getHost,
@@ -16,6 +16,7 @@ import type { AuditEventParams } from "./endpoints/audit";
 import { getFolders } from "./endpoints/folders";
 import { getVlans } from "./endpoints/vlans";
 import { getTagCategories, getTags } from "./endpoints/tags";
+import { getSettings } from "./endpoints/settings";
 import type { VlanListParams } from "./endpoints/vlans";
 import {
   getVm,
@@ -46,6 +47,8 @@ const INTERVAL = {
   clusters: 30_000,
   hosts: 15_000,
   vms: 10_000,
+  // agents post one metrics sample per collection interval (30 s at the shortest)
+  metrics: 30_000,
   task: 1_500,
 } as const;
 
@@ -84,11 +87,14 @@ export const hostVmsQuery = (id: string) =>
     refetchInterval: INTERVAL.vms,
   });
 
-export const hostMetricsQuery = (id: string) =>
+/** `seconds`: the range picked in the metrics tab; a new range keeps the
+ *  previous samples on screen until it loads. */
+export const hostMetricsQuery = (id: string, seconds: number) =>
   queryOptions({
-    queryKey: qk.hostMetrics(id),
-    queryFn: ({ signal }) => getHostMetrics(id, signal),
-    refetchInterval: INTERVAL.hosts,
+    queryKey: qk.hostMetrics(id, seconds),
+    queryFn: ({ signal }) => getHostMetrics(id, seconds, signal),
+    refetchInterval: INTERVAL.metrics,
+    placeholderData: keepPreviousData,
   });
 
 export const hostTemplatesQuery = (id: string) =>
@@ -159,11 +165,12 @@ export const vmQuery = (id: string) =>
     refetchInterval: INTERVAL.vms,
   });
 
-export const vmMetricsQuery = (id: string) =>
+export const vmMetricsQuery = (id: string, seconds: number) =>
   queryOptions({
-    queryKey: qk.vmMetrics(id),
-    queryFn: ({ signal }) => getVmMetrics(id, signal),
-    refetchInterval: INTERVAL.vms,
+    queryKey: qk.vmMetrics(id, seconds),
+    queryFn: ({ signal }) => getVmMetrics(id, seconds, signal),
+    refetchInterval: INTERVAL.metrics,
+    placeholderData: keepPreviousData,
   });
 
 /** Last console thumbnail (`null` = none captured yet). No polling: the agent
@@ -250,6 +257,15 @@ export const agentStorageQuery = () =>
   queryOptions({
     queryKey: qk.agentStorage(),
     queryFn: ({ signal }) => getAgentStorage(signal),
+  });
+
+// ---- application settings -------------------------------------------------
+
+export const settingsQuery = () =>
+  queryOptions({
+    queryKey: qk.settings(),
+    queryFn: ({ signal }) => getSettings(signal),
+    staleTime: 60_000,
   });
 
 // ---- access control -------------------------------------------------------

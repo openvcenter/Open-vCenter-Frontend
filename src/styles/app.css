@@ -798,13 +798,18 @@
 }
 
 /* ---- Native scrollbars ---------------------------------------------------- */
-/* Blink/WebKit get the full chrome via ::-webkit-scrollbar; Firefox (and Chrome
-   121+, where the standard property wins) fall back to the flat two-tone
-   `scrollbar-color`. Use <ScrollArea> when you need the exact look in every
-   browser. */
+/* Blink/WebKit get the full chrome via ::-webkit-scrollbar; Firefox falls back
+   to the flat two-tone `scrollbar-color`. Chrome 121+ ignores every
+   ::-webkit-scrollbar rule on an element with `scrollbar-color` or
+   `scrollbar-width`, so the fallback is only set where the pseudo-elements
+   don't exist. The thin-scrollbar themes (Modern, VMware) set both standard
+   properties themselves. Use <ScrollArea> when you need the exact look in
+   every browser. */
 
-* {
-  scrollbar-color: var(--sb-color-thumb) var(--sb-color-track);
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-color: var(--sb-color-thumb) var(--sb-color-track);
+  }
 }
 
 ::-webkit-scrollbar {
@@ -822,7 +827,7 @@
 ::-webkit-scrollbar-corner {
   background-color: var(--sb-bg);
 }
-::-webkit-scrollbar-button:single-button {
+::-webkit-scrollbar-button {
   display: block;
   background-color: var(--sb-btn-bg);
   background-repeat: no-repeat;
@@ -830,30 +835,31 @@
   box-shadow: var(--sb-btn-shadow);
   border-radius: var(--sb-btn-radius);
 }
-::-webkit-scrollbar-button:single-button:active {
+::-webkit-scrollbar-button:active {
   box-shadow: var(--sb-btn-active-shadow);
 }
-::-webkit-scrollbar-button:single-button:vertical:decrement {
+::-webkit-scrollbar-button:vertical:decrement {
   height: 16px;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><path d='M8 6l3.5 4.5h-7z' fill='%23000'/></svg>");
 }
-::-webkit-scrollbar-button:single-button:vertical:increment {
+::-webkit-scrollbar-button:vertical:increment {
   height: 16px;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><path d='M8 10.5l-3.5-4.5h7z' fill='%23000'/></svg>");
 }
-::-webkit-scrollbar-button:single-button:horizontal:decrement {
+::-webkit-scrollbar-button:horizontal:decrement {
   width: 16px;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><path d='M6 8l4.5-3.5v7z' fill='%23000'/></svg>");
 }
-::-webkit-scrollbar-button:single-button:horizontal:increment {
+::-webkit-scrollbar-button:horizontal:increment {
   width: 16px;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><path d='M10.5 8l-4.5 3.5v-7z' fill='%23000'/></svg>");
 }
-/* kill the phantom second button at each end */
-::-webkit-scrollbar-button:single-button:vertical:start:increment,
-::-webkit-scrollbar-button:single-button:vertical:end:decrement,
-::-webkit-scrollbar-button:single-button:horizontal:start:increment,
-::-webkit-scrollbar-button:single-button:horizontal:end:decrement {
+/* one button at each end: hide the second one Blink/WebKit draw there. Chrome
+   153 no longer matches `:single-button`, so these go by :start / :end. */
+::-webkit-scrollbar-button:vertical:start:increment,
+::-webkit-scrollbar-button:vertical:end:decrement,
+::-webkit-scrollbar-button:horizontal:start:increment,
+::-webkit-scrollbar-button:horizontal:end:decrement {
   display: none;
 }
 

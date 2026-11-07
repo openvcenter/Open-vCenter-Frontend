@@ -5,6 +5,7 @@ import { useVmManagementAction } from '../../actions/useVmManagementAction'
 import { useVmActionBlock } from '../../actions/useVmActionBlock'
 import { vmActionDialog } from '../vmActions/dialogStore'
 import { confirm } from '../../confirm'
+import { useVmActionCan } from '../../rbac/privileges'
 
 export function VmSnapshotsPanel({ vm }: { vm: Vm }) {
   const mgmt = useVmManagementAction(vm)
@@ -12,6 +13,7 @@ export function VmSnapshotsPanel({ vm }: { vm: Vm }) {
   // would only come back as a 409
   const block = useVmActionBlock(vm)
   const disabled = block.blocked || mgmt.isPending
+  const can = useVmActionCan(vm.id)
 
   const restore = async (id: string, name: string) => {
     if (
@@ -49,7 +51,7 @@ export function VmSnapshotsPanel({ vm }: { vm: Vm }) {
         ) : null}
         <Button
           className="min-w-0 px-2"
-          disabled={disabled}
+          disabled={disabled || !can('snapshot_create')}
           onClick={() => vmActionDialog.open({ kind: 'snapshot-create', vmId: vm.id })}
         >
           Create snapshot…
@@ -79,14 +81,14 @@ export function VmSnapshotsPanel({ vm }: { vm: Vm }) {
                     <div className="flex gap-1">
                       <Button
                         className="min-w-0 px-2"
-                        disabled={disabled}
+                        disabled={disabled || !can('snapshot_restore')}
                         onClick={() => restore(s.id, s.name || s.id)}
                       >
                         Restore
                       </Button>
                       <Button
                         className="min-w-0 px-2"
-                        disabled={disabled}
+                        disabled={disabled || !can('snapshot_remove')}
                         onClick={() => remove(s.id, s.name || s.id)}
                       >
                         Remove

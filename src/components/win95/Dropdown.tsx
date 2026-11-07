@@ -38,6 +38,7 @@ export function Dropdown({
   disabled,
   className,
   id,
+  'aria-label': ariaLabel,
 }: {
   label?: string
   value: string
@@ -47,6 +48,8 @@ export function Dropdown({
   disabled?: boolean
   className?: string
   id?: string
+  /** names the field when it has no visible `label` */
+  'aria-label'?: string
 }) {
   const [open, setOpen] = React.useState(false)
   const [placement, setPlacement] = React.useState<ListPlacement | null>(null)
@@ -180,6 +183,7 @@ export function Dropdown({
         type="button"
         id={fieldId}
         role="combobox"
+        aria-label={ariaLabel}
         aria-expanded={open}
         aria-haspopup="listbox"
         disabled={disabled}

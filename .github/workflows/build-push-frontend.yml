@@ -3,7 +3,7 @@ name: Build and push frontend image
 on:
   push:
     # `demo` builds the standalone demo image (OVC_DEMO_MODE baked in) as :demo
-    branches: [main, demo]
+    branches: [demo]
     tags:
       - "*.*.*"
   workflow_dispatch: {}
@@ -31,16 +31,18 @@ jobs:
       - name: Compute image tags
         id: tags
         run: |
+          # A release tag publishes :<version> and moves :latest; the demo branch
+          # publishes :demo; a manual run from a branch only publishes :<sha>.
           DEMO=false
           if [ "${{ github.ref_type }}" = "tag" ]; then
-            TAGS="${{ env.IMAGE }}:${{ github.ref_name }}"
+            TAGS="${{ env.IMAGE }}:${{ github.ref_name }}
+          ${{ env.IMAGE }}:latest"
           elif [ "${{ github.ref_name }}" = "demo" ]; then
             DEMO=true
             TAGS="${{ env.IMAGE }}:demo
           ${{ env.IMAGE }}:demo-${{ github.sha }}"
           else
-            TAGS="${{ env.IMAGE }}:latest
-          ${{ env.IMAGE }}:${{ github.sha }}"
+            TAGS="${{ env.IMAGE }}:${{ github.sha }}"
           fi
           {
             echo "list<<EOF"

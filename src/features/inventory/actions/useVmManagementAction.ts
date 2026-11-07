@@ -59,7 +59,5 @@ const LABEL: Record<VmManagementAction, string> = {
   snapshot_create: "Creating snapshot of",
   snapshot_remove: "Removing snapshot of",
   snapshot_restore: "Restoring snapshot of",
-  enable_metrics: "Enabling metrics for",
-  disable_metrics: "Disabling metrics for",
   refresh: "Refreshing",
 };

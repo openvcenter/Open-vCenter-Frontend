@@ -11,8 +11,7 @@ import {
 } from "./ManagementDialogs";
 import { AgentManagementDialog } from "./AgentManagementDialog";
 import { TagManagementDialog } from "./TagManagementDialog";
-import { RolesDialog } from "../rbac/RolesDialog";
-import { GlobalPermissionsDialog } from "../rbac/GlobalPermissionsDialog";
+import { ApplicationPreferencesDialog } from "../appPreferences/ApplicationPreferencesDialog";
 import { CreateVmDialog } from "../create/CreateVmDialog";
 import {
   useCreateFolder,
@@ -36,10 +35,8 @@ export function OrganizeDialogs() {
       return <AgentManagementDialog />;
     case "tag-management":
       return <TagManagementDialog />;
-    case "roles":
-      return <RolesDialog />;
-    case "global-permissions":
-      return <GlobalPermissionsDialog />;
+    case "app-preferences":
+      return <ApplicationPreferencesDialog initialTab={dialog.tab} />;
     case "new-folder":
       return (
         <NewFolderDialog clusterId={dialog.clusterId} hostId={dialog.hostId} />

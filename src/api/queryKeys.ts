@@ -9,7 +9,7 @@ export const qk = {
   hosts: (clusterId?: string) => ['hosts', { clusterId: clusterId ?? null }] as const,
   host: (id: string) => ['hosts', id] as const,
   hostVms: (id: string) => ['hosts', id, 'vms'] as const,
-  hostMetrics: (id: string) => ['hosts', id, 'metrics'] as const,
+  hostMetrics: (id: string, seconds: number) => ['hosts', id, 'metrics', seconds] as const,
   hostTemplates: (id: string) => ['hosts', id, 'templates'] as const,
   hostIsos: (id: string) => ['hosts', id, 'isos'] as const,
   hostAgentConfig: (id: string) => ['hosts', id, 'agent-config'] as const,
@@ -26,7 +26,7 @@ export const qk = {
 
   vms: (params: VmListParams = {}) => ['vms', params] as const,
   vm: (id: string) => ['vms', id] as const,
-  vmMetrics: (id: string) => ['vms', id, 'metrics'] as const,
+  vmMetrics: (id: string, seconds: number) => ['vms', id, 'metrics', seconds] as const,
   vmThumbnail: (id: string, lastSeen: string | null) =>
     ['vms', id, 'thumbnail', lastSeen] as const,
   vmLocks: () => ['vms', 'locks'] as const,
@@ -53,6 +53,8 @@ export const qk = {
   myPrivileges: (objKey: string) => ['me', 'privileges', objKey] as const,
   vmConsole: (id: string) => ['vms', id, 'console'] as const,
   hostConsole: (id: string) => ['hosts', id, 'console'] as const,
+
+  settings: () => ['settings'] as const,
 
   agentBinaries: () => ['agent-binaries'] as const,
   agentStorage: () => ['agent-binaries', 'storage'] as const,

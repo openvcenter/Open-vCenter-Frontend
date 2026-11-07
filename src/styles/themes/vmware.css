@@ -266,6 +266,7 @@
 
   [data-theme='vmware'] * {
     scrollbar-width: thin;
+    scrollbar-color: var(--sb-color-thumb) var(--sb-color-track);
   }
 }
 

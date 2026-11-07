@@ -121,22 +121,23 @@ See [`src/api/types.ts`](../src/api/types.ts) for the exact TypeScript shapes. S
 | `Cluster`               | `id, name, hypervisor, hostCount, vmCount` |
 | `Host`                  | `id, shortId, clusterId, name, fqdn, ipAddress, hypervisor, online, agent, vmCount`. `fqdn` / `ipAddress` are `string \| null`, resolved by the agent (null until it first checks in) |
 | `HostAgentStatus`       | `version, lastSeen, connected, refreshIntervals {vm,host}` |
-| `HostHardwareInventory` | `cpu {model,sockets,cores,logical}`, `memoryBytes`, `storage[] {path,label?,totalBytes,freeBytes}`, `os {caption,version}`, `network[]` (every physical NIC: `name, description?, mac, speedBps, connected?, status?, linkSpeed?, driver*?, firmwareVersion?`), `vSwitches[]` (`name, id?, type, netAdapter?, allowManagementOS?, embeddedTeaming?, teamMembers?, loadBalancingAlgorithm?, bandwidthReservationMode?`), `hbas[]` (Fibre Channel, best-effort), `system {manufacturer,model}?`, `bootTime?` (derive uptime), `load {cpuPercent,memoryPercent}?` (snapshot, not live), `cluster {clustered,name?,state,nodes[]}?` (the Windows Failover Cluster, **not** `clusterId`), `hyperv {defaultVmPath,defaultVhdPath}?`. From `host_hwinventory` |
-| `HostDetail`            | `Host & { hardware: HostHardwareInventory \| null }` |
+| `HostHardwareInventory` | `cpu {model,sockets,cores,logical}`, `memoryBytes`, `storage[] {path,label?,totalBytes,freeBytes}`, `os {caption,version}`, `network[]` (every physical NIC: `name, description?, mac, speedBps, connected?, status?, linkSpeed?, driver*?, firmwareVersion?, ipv6Enabled?, vmqEnabled?` - the last two null when unknown / VMQ unsupported), `vSwitches[]` (`name, id?, type, netAdapter?, allowManagementOS?, embeddedTeaming?, teamMembers?, loadBalancingAlgorithm?, bandwidthReservationMode?`), `hbas[]` (Fibre Channel, best-effort), `system {manufacturer,model}?`, `bootTime?` (derive uptime), `load {cpuPercent,memoryPercent}?` (snapshot, not live), `cluster {clustered,name?,state,nodes[]}?` (the Windows Failover Cluster, **not** `clusterId`), `hyperv {defaultVmPath,defaultVhdPath}?`. From `host_hwinventory` |
+| `HostDetail`            | `Host & { hardware: HostHardwareInventory \| null, settings: HostSettings \| null }` |
+| `HostSettings`          | Host configuration values, display only (from the agent's `settings_inventory`, every 30 min; null until first reported). Every block nullable: `powerPlan {name,guid}`, `coreIsolation {vbs,hvci}` (configured state), `pageFile {automatic, files[] {path,initialMb,maximumMb,systemManaged}}`, `wirelessLan {installed}`, `ipv6 {disabledComponents}` (Tcpip6 mask: 0 enabled, 255 disabled, 32 prefer IPv4), `hyperv {numaSpanning, enhancedSessionMode, liveMigration {enabled,maxVmMigrations,maxStorageMigrations,useAnyNetwork,authentication,performance}}` |
 | `HostAgentConfig`       | `hostId, rabbitmqUrl, configIni, filename`: the agent's `config.ini` for onboarding. `hostId` is the host **shortId** (the agent's queue prefix); the RabbitMQ URL carries per-host credentials |
 | `HostAgentInstall`      | `url, command, expiresAt, filename`: a tokenized `install.ps1` URL plus a paste-ready elevated-PowerShell one-liner |
 | `Folder`                | `id, name, clusterId, hostId`: a logical VM folder, **application-managed** (not agent-reported). Scoped to exactly one of a cluster or a standalone host. Flat (no nesting) |
 | `Vlan`                  | `id, name, vlanId (1-4094 tag), description, isDefault, clusterId, hostId`: an 802.1Q VLAN, **application-managed**. Scoped like `Folder`; a clustered host uses its cluster's VLANs |
 | `TagCategory`           | `id, name`: a group of mutually exclusive tags - a VM carries **at most one** tag per category. Global (not scoped to a cluster or host), **application-managed** |
 | `Tag`                   | `id, name, categoryId, color, vmCount`: a global VM label, standalone (`categoryId: null`) or in one category. `color` is a palette name: `gray \| red \| orange \| yellow \| green \| teal \| blue \| navy \| purple \| pink` (the frontend maps it to a theme token). `vmCount` counts the VMs carrying it **within the caller's scope**. Names are `[A-Za-z0-9_-]{1,64}` (no spaces), unique case-insensitively within a category (standalone tags among themselves); category names likewise |
-| `Vm`                    | `id, vmUuid, hostId, folderId, name, state, firmware ("BIOS" \| "UEFI"), guestOs (string \| null: guest OS from the hypervisor's guest integration, last known value kept while Off), uptimeSec, vcpu, cpuUsagePercent, memory {assignedBytes,minBytes,maxBytes,dynamic,demandBytes}, disks[] {id,path,controller,sizeBytes,usedBytes,type (Fixed/Dynamic/Differencing),format (VHDX/VHD/passthrough)}, nics[] {id,name,switchName,vlanId,macAddress,ipAddresses[],connected}, snapshots[] {id,name,createdAt,parentId,type}, secureBoot, secureBootTemplate, nestedVirtualization, autoStartAction, autoStartDelaySec, autoStopAction, configPath, dvdPath, highlyAvailable, notes, tagIds[], metricsEnabled, createdAt, lastSeen, lock`. `tagIds` are the ids of its tags (`GET /tags` resolves them) |
+| `Vm`                    | `id, vmUuid, hostId, folderId, name, state, firmware ("BIOS" \| "UEFI"), guestOs (string \| null: guest OS from the hypervisor's guest integration, last known value kept while Off), uptimeSec, vcpu, cpuUsagePercent, memory {assignedBytes,minBytes,maxBytes,dynamic,demandBytes}, disks[] {id,path,controller,sizeBytes,usedBytes,type (Fixed/Dynamic/Differencing),format (VHDX/VHD/passthrough)}, nics[] {id,name,switchName,vlanId,macAddress,ipAddresses[],connected}, snapshots[] {id,name,createdAt,parentId,type}, secureBoot, secureBootTemplate, nestedVirtualization, autoStartAction, autoStartDelaySec, autoStopAction, configPath, dvdPath, highlyAvailable, notes, tagIds[], createdAt, lastSeen, lock`. `tagIds` are the ids of its tags (`GET /tags` resolves them) |
 | `VmState`               | `Running \| Off \| Paused \| Saved \| Starting \| Stopping \| Saving \| Pausing \| Resuming \| Restarting \| Deleting \| Unknown` |
 | `VmLock`                | `taskId, kind, requestedBy, acquiredAt`: set on `Vm.lock` while a mutating task runs, else `null` |
 | `VmLockEntry`           | `VmLock & { vmId, vmName, ttl, taskStatus }`: one row of `GET /vm-locks` |
 | `VmCreateBody`          | see [`POST /vms`](#post-vms---create-a-vm) |
 | `VmCloneBody`           | see [`POST /vms/clone`](#post-vmsclone---clone-a-vm-or-deploy-a-template) |
-| `HostMetricSample`      | `ts, cpuPercent, memPercent, diskLatencyMs, netRxBps, netTxBps, detail` (see [Quick metrics](#quick-metrics)) |
-| `VmMetricSample`        | `ts, cpuPercent, memBytes, diskBytes, netRxBytes, netTxBytes` |
+| `HostMetricSample`      | `ts, cpuPercent, cpuMaxPercent, memPercent, diskReadBps, diskWriteBps, diskReadIops, diskWriteIops, diskReadLatencyMs, diskWriteLatencyMs, netRxBps, netTxBps, detail` (see [Quick metrics](#quick-metrics)) |
+| `VmMetricSample`        | `ts, cpuPercent, cpuMaxPercent, memBytes, memPressure, diskReadBps, diskWriteBps, diskReadIops, diskWriteIops, diskLatencyMs, netRxBps, netTxBps, detail` (see [Quick metrics](#quick-metrics)) |
 | `Template`              | `id, hostId, name, path, sizeBytes, diskSizeBytes, notes, cpuCount, memoryMb, guestOs, createdAt`: per-host inventory of exported VMs |
 | `Iso`                   | `id, hostId, name, path, sizeBytes, checksum`: per-host inventory |
 | `AgentBinary`           | `id, version, hypervisor, filename, sizeBytes, checksumSha256, contentType, storageBackend (local \| s3), notes, isActive, uploadedBy, createdAt` |
@@ -149,6 +150,7 @@ See [`src/api/types.ts`](../src/api/types.ts) for the exact TypeScript shapes. S
 | `Me`                    | `id, email, displayName, groups, superuser, globalPrivileges` |
 | `RbacCatalog`           | `privileges: { id, group, label }[], vmActions: { [action]: privilege \| null }` |
 | `Role`                  | `id, name, description, builtin, privileges, permissionCount` |
+| `AppSettings`           | `metricsRetentionSeconds, metricsRetentionOptions (number[]), metricsIntervalSeconds, metricsIntervalOptions (number[]), vmConsoleNonAdminAccess`. See [Application settings](#application-settings) |
 | `Permission`            | `id, group, roleId, roleName, scopeType (global \| cluster \| host \| folder \| vm), scopeId, scopeName, propagate, createdBy, createdAt` |
 | `PermissionList`        | `direct: Permission[], inherited: Permission[]` (inherited = propagating rows on objects above) |
 | `EffectivePermissions`  | `group, superuser, visible, privileges, paths: [{ name (object \| vm \| folder \| host), levels: [{ scopeType, scopeId, scopeName, blocked, winner, permissions }] }]` |
@@ -186,7 +188,7 @@ Notes on the task fields:
 | GET    | `/hosts/:id/vms`          | -                                         | `Vm[]` |
 | GET    | `/hosts/:id/templates`    | -                                         | `Template[]` |
 | GET    | `/hosts/:id/isos`         | -                                         | `Iso[]` |
-| GET    | `/hosts/:id/metrics`      | -                                         | `HostMetricSample[]`: the **last hour**, oldest first |
+| GET    | `/hosts/:id/metrics`      | `?seconds` (≥ 60, optional)               | `HostMetricSample[]`: the last `seconds`, capped at the metrics retention window (`AppSettings`; the whole window when omitted), oldest first |
 | GET    | `/hosts/:id/agent-config` | -                                         | `HostAgentConfig`. `host.manage` (global; carries RabbitMQ credentials). Re-asserts the host's RabbitMQ user on every call |
 | GET    | `/hosts/:id/agent-install-url` | -                                    | `HostAgentInstall`. `host.manage` (global). Mints a short-lived HMAC-tokenized `agent-install.ps1` URL (TTL `OVC_AGENT_INSTALL_URL_TTL_SECONDS`). Used by the "Setup Agent" tab |
 | GET    | `/folders`                | `hostId?`, `clusterId?`                   | `Folder[]` (no filter → every folder the caller may see) |
@@ -195,7 +197,7 @@ Notes on the task fields:
 | GET    | `/tags`                   | -                                         | `Tag[]`: categorized tags (by category name, then tag name), then standalone tags. Any role |
 | GET    | `/vms`                    | `hostId?`, `folderId?`, `state?`          | `Vm[]` |
 | GET    | `/vms/:id`                | -                                         | `Vm` |
-| GET    | `/vms/:id/metrics`        | -                                         | `VmMetricSample[]`: the last hour, oldest first. Empty until metering is enabled on the VM |
+| GET    | `/vms/:id/metrics`        | `?seconds` (≥ 60, optional)               | `VmMetricSample[]`: the last `seconds`, capped at the metrics retention window, oldest first. Only windows in which the VM ran |
 | GET    | `/vms/:id/console`        | -                                         | `ConsoleTarget` `{ hostname, port: 2179, vmGuid }`. `vm.console`. `409 CONSOLE_UNAVAILABLE` when the VM isn't reported yet or the host has no address. Called by the console panel and, server-side, by the Guacamole tunnel |
 | GET    | `/hosts/:id/console`      | -                                         | `ConsoleTarget` `{ hostname, port: 3389, vmGuid: null }`. `host.console`. Same `409` |
 | GET    | `/vms/:id/thumbnail`      | -                                         | `image/jpeg` (320x240): last console frame the agent captured. Only Running VMs are captured, so an Off VM serves its last image. `X-Captured-At` = capture time (ISO 8601; the frontend proxy passes it through); `Cache-Control: private, max-age=60`. 404 `NOT_FOUND` until a first capture (the UI shows "No preview") |
@@ -258,15 +260,12 @@ noted. The host agent performs the work asynchronously over RabbitMQ.
 | POST   | `/vms/:id/actions/stop`            | `vm_stop` (hard power-off) |
 | POST   | `/vms/:id/actions/restart`         | `vm_restart` |
 | POST   | `/vms/:id/actions/pause`           | `vm_pause` |
-| POST   | `/vms/:id/actions/enable_metrics`  | `vm_enable_metrics`: turns on Hyper-V resource metering (does not change the VM power state) |
-| POST   | `/vms/:id/actions/disable_metrics` | `vm_disable_metrics` |
 | DELETE | `/vms/:id`                         | `vm_delete`. Query `remove_files=true` also deletes the VM's folder and files from the host's disk (irreversible). The default only removes the VM from Hyper-V |
 | DELETE | `/vms/:id/from-inventory`          | _(none: DB only)_. Returns `200 { removed: true }` |
 
 **Privileges** (`GET /rbac/catalog` → `vmActions` is the source of truth): start /
 stop / shutdown / restart / pause → `vm.power`; delete and remove-from-inventory →
-`vm.delete`; rename / edit / notes_edit / startup_change / enable_ha / disable_ha /
-enable_metrics / disable_metrics → `vm.config`; snapshot_* → `vm.snapshot`;
+`vm.delete`; rename / edit / notes_edit / startup_change / enable_ha / disable_ha → `vm.config`; snapshot_* → `vm.snapshot`;
 mount_dvd / eject_dvd → `vm.media`; move_storage → `vm.migrate`; migrate →
 `vm.migrate` **and** `vm.create` on the destination node (or its cluster when the
 node isn't a known host); export_template → `vm.config` and `vm.create` on the VM's
@@ -518,6 +517,7 @@ ids (`targetId`, `hostId`, `clusterId`, `taskId`) are not foreign keys.
 | `agent_binary` | `upload`, `update` (notes / isActive), `delete` |
 | `role`         | `create` (`details.privileges`, or `clonedFrom`), `update` (name / description / privileges), `delete` |
 | `permission`   | `create` (`details.role`, `scopeType`, `scopeId`, `propagate`), `update` (role / propagate), `delete`. `targetName` is `<role\|group>:<name>`; on a host / cluster it carries `hostId` / `clusterId` |
+| `settings`     | `update` (`metricsRetentionSeconds` / `metricsIntervalSeconds` / `vmConsoleNonAdminAccess`). No `targetId` / `targetName` |
 
 ### Roles and permissions
 
@@ -539,27 +539,46 @@ ids (`targetId`, `hostId`, `clusterId`, `taskId`) are not foreign keys.
 
 Deleting a cluster, host, folder or VM deletes its permissions.
 
+### Application settings
+
+| Method | Path | Query / body | Response |
+| ------ | ---- | ------------ | -------- |
+| GET    | `/settings` | - | `AppSettings`. Any signed-in user |
+| PATCH  | `/settings` | any of `{ metricsRetentionSeconds, metricsIntervalSeconds, vmConsoleNonAdminAccess }` | `AppSettings`. `settings.manage` (global). `400 INVALID` when `metricsRetentionSeconds` / `metricsIntervalSeconds` isn't one of its options |
+
+- `metricsRetentionSeconds`: default `3600`.
+- `metricsIntervalSeconds`: one of 30, 60, 120, 300, 600; default `300`. The
+  backend pushes it to the host agents.
+- `vmConsoleNonAdminAccess`: default `false`; stored only, not enforced yet.
+
 ### Quick metrics
 
 These are lightweight host/VM load samples, **not** a monitoring stack. The agent
-samples every `metrics_interval` seconds (default 300), and the backend keeps only
-the last hour.
+reads its performance counters every 5 s and posts one sample per collection
+interval (`AppSettings.metricsIntervalSeconds`, default 5 min). Each value is the
+mean over that window; `cpuMaxPercent` (and the host's `detail.diskLatencyMaxMs`)
+is its peak. Rates are already per second (bytes/s, IO/s), latencies are in ms -
+no client-side deltas. The backend keeps the metrics retention window
+(`AppSettings.metricsRetentionSeconds`, default 1 h), oldest first. Both
+endpoints take `?seconds=` to return only the last part of it; the frontend asks
+for 1 h by default and more when the user picks a range.
 
-- `GET /hosts/:id/metrics` is always populated: CPU %, memory %, disk latency (ms),
-  network (bps).
-- `GET /vms/:id/metrics` is empty until `POST /vms/:id/actions/enable_metrics`. It
-  carries CPU % plus memory, disk and network bytes from Hyper-V resource metering.
-  `Vm.metricsEnabled` reflects whether metering is on.
-- `memBytes` is an average. `diskBytes` / `netRxBytes` / `netTxBytes` are cumulative
-  counters: diff consecutive samples to get a rate.
-- `HostMetricSample.detail` carries `memUsedBytes` / `memTotalBytes`,
-  `disks[] {name,readLatencyMs,writeLatencyMs,queueLength}` and
-  `net[] {name,rxBps,txBps}`.
+- `GET /hosts/:id/metrics`: CPU % (hypervisor logical processors), memory %,
+  disk read/write bytes/s, IOPS and latency, network rx/tx bytes/s.
+  `detail` carries `memUsedBytes`, `memTotalBytes`, `diskLatencyMaxMs`,
+  `disks[] {name,label?,readBps,writeBps,readIops,writeIops,readLatencyMs,writeLatencyMs,queueLength,busyPercent}`
+  (`name` = volume, `C:` or a CSV mount path; `label` = volume label or CSV name)
+  and `net[] {name,rxBps,txBps}`.
+- `GET /vms/:id/metrics`: every VM, but only while it runs. CPU % (average over its
+  virtual processors), memory bytes, `memPressure` (Dynamic Memory, else `null`),
+  disk read/write bytes/s and IOPS, `diskLatencyMs` (IOPS-weighted), network
+  rx/tx bytes/s. `detail.disks[] {path,readBps,writeBps,readIops,writeIops,latencyMs,queueLength}`
+  is one entry per virtual disk.
 
-The frontend shows the host samples in a **Host Metrics** tab on the host detail
-(always present once the agent has checked in), with Processor / Memory / Network /
-Disk-latency charts. The VM's **VM Metrics** tab mirrors it, shown only while
-metering is on.
+The frontend shows them in the **Host Metrics** tab (once the agent has checked in)
+and the **VM Metrics** tab (always): Processor (average + dashed peak), Memory,
+Network and Disk (throughput, IOPS, latency; a selector picks one disk), with a
+time range bar and drag-to-zoom.
 
 ---
 
@@ -635,7 +654,7 @@ reverts.
 | `/vms`, `/vms/:id`, `/hosts/:id/vms`     | 10 s                                              | catch state changes between agent inventory posts |
 | `/tasks/:id`                             | 1.5 s while running, stops when terminal          | responsive actions |
 | `/tasks` (Recent Tasks dock)             | 1.5 s while any task is active, else 4 s          | live progress |
-| `/hosts/:id/metrics` · `/vms/:id/metrics` | 15 s · 10 s, only while the metrics tab is open  | the agent samples ~every 5 min |
+| `/hosts/:id/metrics` · `/vms/:id/metrics` | 30 s, only while the metrics tab is open          | one sample per collection interval (30 s - 10 min) |
 | `/vms/:id/thumbnail`                     | none - refetched when the VM's `lastSeen` changes | a new image only comes with an agent `vm_inventory` |
 | `/templates`                             | 15 s                                              | a new export shows up in the tree |
 | `/vm-locks`                              | 10 s, only while the dialog is open               | `task.cancel` view |

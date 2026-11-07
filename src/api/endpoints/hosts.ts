@@ -28,8 +28,10 @@ export const getHostAgentInstall = (id: string, signal?: AbortSignal) =>
 export const getHostVms = (id: string, signal?: AbortSignal) =>
   request<Vm[]>(`/hosts/${id}/vms`, { signal });
 
-export const getHostMetrics = (id: string, signal?: AbortSignal) =>
-  request<HostMetricSample[]>(`/hosts/${id}/metrics`, { signal });
+/** Quick host metrics for the last `seconds` (capped at the retention window),
+ *  oldest first. */
+export const getHostMetrics = (id: string, seconds: number, signal?: AbortSignal) =>
+  request<HostMetricSample[]>(`/hosts/${id}/metrics`, { query: { seconds }, signal });
 
 export const getHostTemplates = (id: string, signal?: AbortSignal) =>
   request<Template[]>(`/hosts/${id}/templates`, { signal });

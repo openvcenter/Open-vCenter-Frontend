@@ -349,10 +349,13 @@ The Modern theme uses [shadcn/ui](https://ui.shadcn.com)'s zinc palette.
 The VMware Nostalgia theme follows the colours and component styles of VMware's
 [**Clarity Design System**](https://github.com/vmware-clarity/ng-clarity) (MIT licensed).
 
-The Classic MacOS theme ports the Platinum colours, bevels, title bar, tabs and
-scrollbars from [**MacOS9**](https://github.com/wieslawsoltes/MacOS9) by Wiesław
+The Classic MacOS theme ports the Platinum colours, bevels, title bar and tabs
+from [**MacOS9**](https://github.com/wieslawsoltes/MacOS9) by Wiesław
 Šoltés and contributors (MIT licensed), a browser recreation of the Mac OS 9
-desktop. It uses the [**ChicagoFLF**](https://fontlibrary.org/en/font/chicagoflf)
+desktop. Its push buttons, fields, menus, status bar and scrollbars follow the
+Mac OS 8 Human Interface Guidelines' numbers as collected in the
+[Platinum notes](https://github.com/livid/exe/blob/main/docs/platinum.md) of
+[**exe**](https://github.com/livid/exe). It uses the [**ChicagoFLF**](https://fontlibrary.org/en/font/chicagoflf)
 font by Robin Casady (public domain). No Apple artwork is included; Mac OS is a
 trademark of Apple Inc., and this project is not affiliated with Apple.
 

@@ -4,7 +4,7 @@ export function bytes(n: number | null | undefined): string {
   const units = ["B", "KB", "MB", "GB", "TB", "PB"];
   const i = Math.min(
     units.length - 1,
-    Math.floor(Math.log(n) / Math.log(1024)),
+    Math.max(0, Math.floor(Math.log(n) / Math.log(1024))),
   );
   const val = n / 1024 ** i;
   return `${val.toFixed(val >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
@@ -51,6 +51,30 @@ export function shortDateTime(iso: string | null | undefined): string {
     minute: "2-digit",
     hour12: false,
   });
+}
+
+/** A metrics retention window: "1 hour", "6 hours", "3 days". */
+export function retentionLabel(seconds: number): string {
+  const days = seconds / 86_400;
+  if (Number.isInteger(days) && days > 1) return `${days} days`;
+  const hours = Math.round(seconds / 3_600);
+  return hours === 1 ? "1 hour" : `${hours} hours`;
+}
+
+/** A metrics collection interval: "30 seconds", "1 minute", "5 minutes". */
+export function intervalLabel(seconds: number): string {
+  if (seconds < 60) return `${seconds} seconds`;
+  const minutes = Math.round(seconds / 60);
+  return minutes === 1 ? "1 minute" : `${minutes} minutes`;
+}
+
+/** "the last hour is kept" / "the last 24 hours are kept"; a generic line
+ *  while the settings load. */
+export function metricsKeptText(seconds: number | null | undefined): string {
+  if (!seconds) return "older samples are pruned";
+  return seconds === 3_600
+    ? "the last hour is kept"
+    : `the last ${retentionLabel(seconds)} are kept`;
 }
 
 /** Coarse uptime ("12d 4h") from a boot timestamp. */

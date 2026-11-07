@@ -8,6 +8,65 @@ All notable changes to ovc-frontend. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-07
+
+### Added
+
+- Host ▸ Configuration ▸ Host Settings: power plan, core isolation, page file,
+  Wireless LAN, IPv6, NUMA spanning, enhanced session mode and live migration
+  settings, read-only (needs ovc-backend 0.6.0 and ovc-agent-hyperv 1.0.10).
+- Host ▸ Configuration ▸ Network Adapters: IPv6 and VMQ state per adapter.
+- Host and VM metrics: a time range bar (`1h | 2h | 6h | … | All`, up to the
+  metrics retention; default 1h) and drag-to-zoom on any chart, with Reset zoom
+  (needs ovc-backend `?seconds=` on the metrics endpoints).
+
+### Changed
+
+- Metrics ▸ Disk: "All disks" draws one line per disk (read solid, write
+  dashed) instead of the sum, and the selector is hidden when there is only one
+  disk. Host disks are volumes (`C:`, `D:`; needs ovc-agent-hyperv 1.0.10),
+  shown with their label or CSV name (`C: (SYSTEM)`).
+
+## [0.6.0] - 2026-11-07
+
+### Added
+
+- Administration ▸ Application Preferences (needs ovc-backend `/settings`):
+  General tab with VM console access for non-Hyper-V administrators and metrics
+  retention (1 hour - 7 days); Roles and Global Permissions moved here as tabs.
+- Application Preferences ▸ General: metrics collection interval (30 seconds -
+  10 minutes, default 5 minutes).
+- Host and VM metrics: disk throughput, IOPS and latency charts with a per-disk
+  selector, a dashed CPU peak line, and VM memory pressure.
+
+### Fixed
+
+- Themed scrollbars in Chrome: the global `scrollbar-color` fallback made
+  Chrome 121+ ignore the painted scrollbars, and Chrome 153 dropped the
+  `:single-button` selector the arrow boxes used. Classic, XP, Win7, 16bit and
+  Classic MacOS draw their own scrollbars again.
+
+### Changed
+
+- Classic MacOS theme refined after the Mac OS 8 HIG: push buttons with a real
+  ink border and two-step bevel that go dark with white text when pressed and
+  lose the bevel when disabled; white fields with outer sunken lines and a
+  lavender focus ring; `#eee` menus with a hard drop shadow and no menu-bar
+  hover; a lavender scrollbar thumb on a sunken track; a 2px window shadow.
+- Events History's object-type and outcome filters use the themed dropdown
+  instead of the browser's native list.
+- CI builds the container image only for release tags, which now also move
+  `:latest`. Pushes to `main` build nothing.
+- Metrics panels name the configured retention window, and charts spanning more
+  than a day show the date on the time axis.
+
+### Removed
+
+- Administration ▸ Roles and Global Permissions menu items: both are tabs of
+  Application Preferences now.
+- Enable / Disable Metrics in the VM More menu: every running VM has metrics
+  (needs ovc-backend and ovc-agent-hyperv with the PDH sampler).
+
 ## [0.5.0] - 2026-11-02
 
 ### Added
@@ -198,7 +257,9 @@ All notable changes to ovc-frontend. The format follows
 
 First public release.
 
-[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.5.0...HEAD
+[Unreleased]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.7.0...HEAD
+[0.7.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.6.0...0.7.0
+[0.6.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.5.0...0.6.0
 [0.5.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.4.1...0.5.0
 [0.4.1]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.4.0...0.4.1
 [0.4.0]: https://github.com/openvcenter/Open-vCenter-Frontend/compare/0.3.0...0.4.0

@@ -55,6 +55,10 @@ export interface HostHardwareInventory {
     driverDate?: string | null;
     driverProvider?: string | null;
     firmwareVersion?: string | null;
+    /** IPv6 (`ms_tcpip6`) binding; null = unknown. */
+    ipv6Enabled?: boolean | null;
+    /** VMQ state; null = not supported by the adapter (or unknown). */
+    vmqEnabled?: boolean | null;
   }>;
   /** Virtual switches / bridges defined on the host. */
   vSwitches?: Array<{
@@ -117,6 +121,43 @@ export interface Host {
 
 export interface HostDetail extends Host {
   hardware: HostHardwareInventory | null;
+  /** Host configuration values from the agent; null until first reported. */
+  settings?: HostSettings | null;
+}
+
+/** Host configuration values as the agent reports them (display only). Every
+ * block is null when the agent could not read it. */
+export interface HostSettings {
+  powerPlan?: { name: string; guid: string } | null;
+  /** Configured VBS / Memory Integrity (HVCI) state. */
+  coreIsolation?: { vbs: boolean; hvci: boolean } | null;
+  pageFile?: {
+    /** "Automatically manage paging file size for all drives". */
+    automatic: boolean;
+    files: Array<{
+      path: string;
+      initialMb: number;
+      maximumMb: number;
+      systemManaged: boolean;
+    }>;
+  } | null;
+  wirelessLan?: { installed: boolean } | null;
+  /** Tcpip6 DisabledComponents mask: 0 enabled, 255 disabled, 32 prefer IPv4. */
+  ipv6?: { disabledComponents: number } | null;
+  hyperv?: {
+    numaSpanning: boolean;
+    enhancedSessionMode: boolean;
+    liveMigration: {
+      enabled: boolean;
+      maxVmMigrations: number;
+      maxStorageMigrations: number;
+      useAnyNetwork: boolean;
+      /** "CredSSP" | "Kerberos" */
+      authentication: string;
+      /** "TCPIP" | "Compression" | "SMB" */
+      performance: string;
+    };
+  } | null;
 }
 
 /** `GET /hosts/:id/agent-config` - onboarding info for a not-yet-connected host. */
@@ -331,7 +372,6 @@ export interface Vm {
   notes: string | null;
   /** application-managed tags (`GET /tags` resolves the ids). */
   tagIds: string[];
-  metricsEnabled: boolean;
   createdAt: Iso8601;
   /** timestamp of the last inventory refresh that touched this row. */
   lastSeen: Iso8601 | null;
@@ -358,44 +398,74 @@ export interface VmLockEntry extends VmLock {
 }
 
 /**
- * One quick-metrics sample from `GET /vms/:id/metrics` (last hour, oldest first).
- * Empty until Hyper-V resource metering is enabled on the VM. `mem_bytes` is an
- * average; `disk_bytes` / `net_*_bytes` are cumulative counters - diff
- * consecutive samples for a rate.
+ * Quick metrics. The agent reads its performance counters every 5 s and posts one
+ * sample per collection interval (`AppSettings.metricsIntervalSeconds`): each
+ * value is the mean over that window, `cpuMaxPercent` its peak. Rates are per
+ * second (bytes/s, IO/s), latencies in ms. Samples cover the retention window,
+ * oldest first.
  */
+export interface MetricDiskIo {
+  readBps?: number | null;
+  writeBps?: number | null;
+  readIops?: number | null;
+  writeIops?: number | null;
+}
+
+/** `GET /vms/:id/metrics` - only while the VM runs. */
 export interface VmMetricSample {
   ts: Iso8601;
   cpuPercent: number | null;
+  cpuMaxPercent: number | null;
   memBytes: number | null;
-  diskBytes: number | null;
-  netRxBytes: number | null;
-  netTxBytes: number | null;
+  /** Dynamic Memory average pressure (%); null without Dynamic Memory. */
+  memPressure: number | null;
+  diskReadBps: number | null;
+  diskWriteBps: number | null;
+  diskReadIops: number | null;
+  diskWriteIops: number | null;
+  /** IOPS-weighted across the VM's virtual disks. */
+  diskLatencyMs: number | null;
+  netRxBps: number | null;
+  netTxBps: number | null;
+  detail: {
+    /** one entry per virtual disk (VHD path). */
+    disks?: Array<
+      MetricDiskIo & { path: string; latencyMs?: number | null; queueLength?: number | null }
+    >;
+  } | null;
 }
 
-/**
- * `GET /hosts/:id/metrics` - a short rolling time-series of quick host metrics
- * (the agent samples every few minutes, the last hour is kept). Always collected.
- * `netRxBps` / `netTxBps` are already a per-second rate (not cumulative);
- * `cpuPercent` / `memPercent` are gauges; `diskLatencyMs` is a gauge in ms.
- * `detail` carries the per-disk / per-nic breakdown and `memUsedBytes` /
- * `memTotalBytes`.
- */
+/** `GET /hosts/:id/metrics`. CPU is the hypervisor's logical processors. */
 export interface HostMetricSample {
   ts: Iso8601;
   cpuPercent: number | null;
+  cpuMaxPercent: number | null;
   memPercent: number | null;
-  diskLatencyMs: number | null;
+  diskReadBps: number | null;
+  diskWriteBps: number | null;
+  diskReadIops: number | null;
+  diskWriteIops: number | null;
+  diskReadLatencyMs: number | null;
+  diskWriteLatencyMs: number | null;
   netRxBps: number | null;
   netTxBps: number | null;
   detail: {
     memUsedBytes?: number | null;
     memTotalBytes?: number | null;
-    disks?: Array<{
-      name: string;
-      readLatencyMs?: number | null;
-      writeLatencyMs?: number | null;
-      queueLength?: number | null;
-    }>;
+    diskLatencyMaxMs?: number | null;
+    /** one entry per physical disk ("0 C:"). */
+    disks?: Array<
+      MetricDiskIo & {
+        /** volume: "C:", or a CSV mount path. */
+        name: string;
+        /** volume label, or the CSV name; absent when it has none. */
+        label?: string;
+        readLatencyMs?: number | null;
+        writeLatencyMs?: number | null;
+        queueLength?: number | null;
+        busyPercent?: number | null;
+      }
+    >;
     net?: Array<{ name: string; rxBps?: number | null; txBps?: number | null }>;
   } | null;
 }
@@ -514,8 +584,6 @@ export type VmManagementAction =
   | "snapshot_create"
   | "snapshot_remove"
   | "snapshot_restore"
-  | "enable_metrics"
-  | "disable_metrics"
   | "refresh";
 
 export interface Task {
@@ -564,7 +632,8 @@ export type AuditTargetType =
   | "tag_category"
   | "agent_binary"
   | "role"
-  | "permission";
+  | "permission"
+  | "settings";
 
 /** One "who changed what" record - `GET /audit-events`. Outlives its target:
  *  `targetName` is the name at event time and the ids are not foreign keys. */
@@ -695,6 +764,23 @@ export interface ConsoleTarget {
   port: number;
   /** VM console only: the vmconnect preconnection blob. */
   vmGuid: string | null;
+}
+
+// ---- Application settings ---------------------------------------------------
+
+/** Application-wide preferences (`GET` / `PATCH /settings`). */
+export interface AppSettings {
+  /** How long host / VM metric samples are kept. */
+  metricsRetentionSeconds: number;
+  /** The values `PATCH` accepts for `metricsRetentionSeconds`. */
+  metricsRetentionOptions: number[];
+  /** How often the agents post a metrics sample (pushed to them by the backend). */
+  metricsIntervalSeconds: number;
+  /** The values `PATCH` accepts for `metricsIntervalSeconds`. */
+  metricsIntervalOptions: number[];
+  /** Let users who aren't Hyper-V administrators open a VM console. Stored
+   *  only - not enforced yet. */
+  vmConsoleNonAdminAccess: boolean;
 }
 
 // ---- Error envelope -------------------------------------------------------

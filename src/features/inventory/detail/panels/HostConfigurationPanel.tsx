@@ -6,12 +6,14 @@ import {
   HostNetworkAdaptersPanel,
   HostVirtualSwitchesPanel,
 } from "./HostHardwareDetails";
+import { HostSettingsPanel } from "./HostSettingsPanel";
 import { SectionList } from "./SectionList";
 import { VirtualNetworksPanel } from "./VirtualNetworksPanel";
 import { VmStartupOrderingPanel } from "./VmStartupOrderingPanel";
 
 const SECTIONS = [
   { id: "startup", label: "VM Startup Ordering" },
+  { id: "settings", label: "Host Settings" },
   { id: "nics", label: "Network Adapters" },
   { id: "vswitches", label: "Virtual Switches" },
   { id: "vnets", label: "Virtual Networks" },
@@ -38,6 +40,7 @@ export function HostConfigurationPanel({
           showHost={false}
         />
       ) : null}
+      {section === "settings" ? <HostSettingsPanel settings={host.settings} /> : null}
       {section === "nics" ? (
         <HostNetworkAdaptersPanel hardware={host.hardware} />
       ) : null}
