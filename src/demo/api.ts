@@ -266,8 +266,8 @@ route("GET", "/hosts/:id/vms", ({ state, params, now }) => {
     .map((v) => vmOut(state, v, now));
 });
 
-route("GET", "/hosts/:id/metrics", ({ state, params, now }) =>
-  hostMetrics(state, hostById(state, params.id), now),
+route("GET", "/hosts/:id/metrics", ({ state, params, query, now }) =>
+  hostMetrics(state, hostById(state, params.id), now, query.seconds),
 );
 
 route("GET", "/hosts/:id/templates", ({ state, params }) =>
@@ -799,8 +799,8 @@ route("GET", "/vms", ({ state, query, now }) =>
 
 route("GET", "/vms/:id", ({ state, params, now }) => vmOut(state, vmById(state, params.id), now));
 
-route("GET", "/vms/:id/metrics", ({ state, params, now }) =>
-  vmMetrics(vmById(state, params.id), now),
+route("GET", "/vms/:id/metrics", ({ state, params, query, now }) =>
+  vmMetrics(state, vmById(state, params.id), now, query.seconds),
 );
 
 route("PATCH", "/vms/:id", (ctx) => {
@@ -842,8 +842,6 @@ const VM_ACTIONS: Record<string, { fn: string; transitional?: VmState }> = {
   restart: { fn: "vm_restart", transitional: "Restarting" },
   pause: { fn: "vm_pause", transitional: "Pausing" },
   delete: { fn: "vm_delete", transitional: "Deleting" },
-  enable_metrics: { fn: "vm_enable_metrics" },
-  disable_metrics: { fn: "vm_disable_metrics" },
   rename: { fn: "vm_rename" },
   edit: { fn: "vm_edit" },
   migrate: { fn: "vm_migrate" },
@@ -1309,6 +1307,46 @@ route("GET", "/me", () => ({
 }));
 
 route("GET", "/rbac/catalog", () => catalog());
+
+// ---- Application Preferences (mirrors ovc-backend routes/settings.py) -----------------
+
+const METRICS_RETENTION_OPTIONS = [3600, 21600, 43200, 86400, 259200, 604800];
+const METRICS_INTERVAL_OPTIONS = [30, 60, 120, 300, 600];
+
+const settingsOut = (state: DemoState) => ({
+  ...state.settings,
+  metricsRetentionOptions: METRICS_RETENTION_OPTIONS,
+  metricsIntervalOptions: METRICS_INTERVAL_OPTIONS,
+});
+
+route("GET", "/settings", ({ state }) => settingsOut(state));
+
+route("PATCH", "/settings", (ctx) => {
+  const b = body<Partial<DemoState["settings"]>>(ctx);
+  const before = { ...ctx.state.settings };
+  if (b.metricsRetentionSeconds != null) {
+    if (!METRICS_RETENTION_OPTIONS.includes(b.metricsRetentionSeconds)) {
+      throw invalid(`Metrics retention must be one of ${METRICS_RETENTION_OPTIONS.join(", ")} seconds`);
+    }
+    ctx.state.settings.metricsRetentionSeconds = b.metricsRetentionSeconds;
+  }
+  if (b.metricsIntervalSeconds != null) {
+    if (!METRICS_INTERVAL_OPTIONS.includes(b.metricsIntervalSeconds)) {
+      throw invalid(`Metrics interval must be one of ${METRICS_INTERVAL_OPTIONS.join(", ")} seconds`);
+    }
+    ctx.state.settings.metricsIntervalSeconds = b.metricsIntervalSeconds;
+  }
+  if (b.vmConsoleNonAdminAccess != null) {
+    ctx.state.settings.vmConsoleNonAdminAccess = b.vmConsoleNonAdminAccess;
+  }
+  const diff = changes(before, { ...ctx.state.settings });
+  if (diff) {
+    audit(ctx.state, ctx.now, "settings.update",
+      { type: "settings", id: null, name: null, hostId: null, clusterId: null },
+      { details: diff });
+  }
+  return settingsOut(ctx.state);
+});
 
 route("GET", "/me/privileges", ({ state, query }) => {
   const items: Record<string, string[] | null> = {};

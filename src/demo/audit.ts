@@ -179,7 +179,6 @@ export const TASK_AUDIT_ACTION: Record<string, string> = {
   vm_startup_change: "vm.startup_change",
   mount_dvd: "vm.mount_dvd",
   vm_export_template: "vm.export_template",
-  vm_enable_metrics: "vm.enable_metrics",
   snapshot_create: "vm.snapshot_create",
   snapshot_remove: "vm.snapshot_remove",
   host_update_agent: "host.update_agent",

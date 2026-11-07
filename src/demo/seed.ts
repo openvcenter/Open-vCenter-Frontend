@@ -279,6 +279,9 @@ export function generateHardware(
     driverDate: rng.pick(["2025-03-14", "2024-11-02", "2025-06-20"]),
     driverProvider: description.startsWith("Mellanox") ? "Mellanox" : description.split(" ")[0],
     firmwareVersion: rng.pick(["14.32.1010", "22.5.7", "1.3212.0"]),
+    ipv6Enabled: rng.chance(0.3),
+    // the Broadcom 1 GbE ports have no VMQ
+    vmqEnabled: description.startsWith("Broadcom") ? null : rng.chance(0.8),
   });
 
   const network = clustered
@@ -424,6 +427,7 @@ export function generateDemoState(now = Date.now(), seed = randomSeed()): DemoSt
     auditEvents: [],
     roles: seedRoles(),
     permissions: [],
+    settings: { metricsRetentionSeconds: 3600, metricsIntervalSeconds: 300, vmConsoleNonAdminAccess: false },
   };
 
   // ---- tag catalog: OS + Datacenter categories and a few standalone tags ----
@@ -709,7 +713,6 @@ export function generateDemoState(now = Date.now(), seed = randomSeed()): DemoSt
           dcTagFor(site.tag),
           ...(rng.chance(0.35) ? [rng.pick(looseTags)] : []),
         ],
-        metricsEnabled: rng.chance(0.3),
         createdAt: new Date(now - rng.int(5, 700) * DAY).toISOString(),
         runningSince:
           power === "Running" || power === "Paused"

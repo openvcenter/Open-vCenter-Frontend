@@ -2,6 +2,7 @@ import type {
   Cluster,
   Host,
   HostDetail,
+  HostSettings,
   Task,
   TaskDetail,
   TaskStatus,
@@ -24,7 +25,7 @@ import type {
 } from "./model";
 import { hostMetrics, vmCpuAt, vmMemAt } from "./metrics";
 import { diskFileName, vmFolderFor } from "./paths";
-import { hash32, randomMac, uuid } from "./random";
+import { hash32, noise, randomMac, uuid } from "./random";
 import { GB, connectHost } from "./seed";
 import { SHOW_PERCENT_FROM_MS, taskProfile } from "./taskProfiles";
 
@@ -108,6 +109,40 @@ export function hostOut(state: DemoState, h: DemoHost, now: number): Host {
   };
 }
 
+/** The agent's `settings_inventory` - fixed per host (a pure function of its id),
+ *  mostly the recommended values with a few hosts left on the Windows defaults. */
+function hostSettings(h: DemoHost): HostSettings {
+  const pick = (key: string, chance: number) => noise(`${h.id}:${key}`, 0) < chance;
+  const highPerf = pick("power", 0.75);
+  const clustered = h.clusterId != null;
+  return {
+    powerPlan: highPerf
+      ? { name: "High performance", guid: "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c" }
+      : { name: "Balanced", guid: "381b4222-f694-41f0-9685-ff5bb260df2e" },
+    coreIsolation: { vbs: pick("vbs", 0.6), hvci: pick("hvci", 0.4) },
+    pageFile: pick("pagefile", 0.5)
+      ? { automatic: true, files: [] }
+      : {
+          automatic: false,
+          files: [{ path: "C:\\pagefile.sys", initialMb: 4096, maximumMb: 8192, systemManaged: false }],
+        },
+    wirelessLan: { installed: pick("wlan", 0.1) },
+    ipv6: { disabledComponents: pick("ipv6", 0.6) ? 255 : 0 },
+    hyperv: {
+      numaSpanning: pick("numa", 0.8),
+      enhancedSessionMode: pick("esm", 0.2),
+      liveMigration: {
+        enabled: clustered || pick("lm", 0.3),
+        maxVmMigrations: clustered ? 4 : 2,
+        maxStorageMigrations: 2,
+        useAnyNetwork: !clustered,
+        authentication: clustered ? "Kerberos" : "CredSSP",
+        performance: clustered ? "SMB" : "Compression",
+      },
+    },
+  };
+}
+
 export function hostDetailOut(state: DemoState, h: DemoHost, now: number): HostDetail {
   const base = hostOut(state, h, now);
   const hw = h.hardware;
@@ -117,6 +152,7 @@ export function hostDetailOut(state: DemoState, h: DemoHost, now: number): HostD
   const defaultVmPath = hostDefaultVmPath(state, h);
   return {
     ...base,
+    settings: hostSettings(h),
     hardware: {
       ...hw,
       storage: hostVolumes(state, h).map((v) => ({ ...v })),
@@ -443,10 +479,6 @@ function applyEffect(state: DemoState, t: DemoTask, at: number): string | null {
     }
     case "snapshot_restore":
       return vm!.snapshots.some((s) => s.id === p.snapshot_id) ? null : "Checkpoint not found.";
-    case "vm_enable_metrics":
-    case "vm_disable_metrics":
-      vm!.metricsEnabled = t.kind === "vm_enable_metrics";
-      return null;
     case "refresh_status":
       return null;
 
@@ -682,7 +714,6 @@ export function placeholderVm(input: {
     highlyAvailable: input.ha,
     notes: input.notes,
     tagIds: [],
-    metricsEnabled: false,
     createdAt: iso(input.now),
     runningSince: null,
     stoppedAt: null,

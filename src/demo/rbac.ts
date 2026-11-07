@@ -50,8 +50,6 @@ const VM_ACTIONS: Record<string, string | null> = {
   restart: "vm.power",
   pause: "vm.power",
   delete: "vm.delete",
-  enable_metrics: "vm.config",
-  disable_metrics: "vm.config",
   rename: "vm.config",
   edit: "vm.config",
   migrate: "vm.migrate",

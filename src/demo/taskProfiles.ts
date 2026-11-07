@@ -38,8 +38,6 @@ export const TASK_PROFILES: Record<string, TaskProfile> = {
   snapshot_create: P(3, "Creating checkpoint"),
   snapshot_remove: P(4, "Merging checkpoint"),
   snapshot_restore: P(5, "Applying checkpoint"),
-  vm_enable_metrics: P(1.5, "Enabling resource metering"),
-  vm_disable_metrics: P(1.5, "Disabling resource metering"),
   refresh_status: P(1, "Refreshing VM"),
   // host
   refresh_hardware: P(3, "Collecting hardware inventory"),

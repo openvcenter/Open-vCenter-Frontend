@@ -1,5 +1,6 @@
 import type {
   AgentBinary,
+  AppSettings,
   AuditEvent,
   Folder,
   HostHardwareInventory,
@@ -23,7 +24,7 @@ import type {
  * Bump `DEMO_STATE_VERSION` whenever this shape changes - an older saved state
  * is then discarded and a fresh inventory generated.
  */
-export const DEMO_STATE_VERSION = 6;
+export const DEMO_STATE_VERSION = 7;
 
 export interface DemoVolume {
   path: string;
@@ -138,7 +139,14 @@ export interface DemoState {
   /** Access control (`demo/rbac.ts`). */
   roles: DemoRole[];
   permissions: DemoPermission[];
+  /** Application Preferences (`GET` / `PATCH /settings`). */
+  settings: DemoSettings;
 }
+
+export type DemoSettings = Pick<
+  AppSettings,
+  "metricsRetentionSeconds" | "metricsIntervalSeconds" | "vmConsoleNonAdminAccess"
+>;
 
 /** A role; built-ins (fixed ids) keep their privileges in `demo/rbac.ts`. */
 export interface DemoRole {
